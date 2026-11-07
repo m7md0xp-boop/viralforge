@@ -1,12 +1,22 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-// Minimal API for the renderer. API keys are never exposed here.
+// Minimal API for the renderer. Keys are only returned by secrets.reveal (called when Settings opens).
 contextBridge.exposeInMainWorld('desktop', {
   secrets: {
     status: () => ipcRenderer.invoke('secrets:status'),
-    set: (name, value) => ipcRenderer.invoke('secrets:set', name, value)
+    set: (name, value) => ipcRenderer.invoke('secrets:set', name, value),
+    reveal: (name) => ipcRenderer.invoke('secrets:reveal', name)
   },
   ai: {
-    request: ({ provider, path, body }) => ipcRenderer.invoke('ai:request', { provider, path, body })
+    request: ({ provider, path, body, requestId }) =>
+      ipcRenderer.invoke('ai:request', { provider, path, body, requestId }),
+    cancel: (requestId) => ipcRenderer.invoke('ai:cancel', requestId)
+  },
+  profiles: {
+    list: () => ipcRenderer.invoke('profiles:list'),
+    current: () => ipcRenderer.invoke('profiles:current'),
+    create: (name) => ipcRenderer.invoke('profiles:create', name),
+    open: (id) => ipcRenderer.invoke('profiles:open', id),
+    openPicker: () => ipcRenderer.invoke('profiles:openPicker')
   }
 });

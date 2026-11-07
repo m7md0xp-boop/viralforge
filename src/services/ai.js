@@ -2,12 +2,14 @@ import { getSecret } from './secrets';
 import { providerFetch } from './aiTransport';
 import { safeGetLocalStorage } from '../utils/storage';
 
-// Gemini API caller with up to 3 attempts and 20s global timeout via AbortController
+// Gemini API caller with up to 3 attempts and a 90s global budget via AbortController.
+// Long prompts on Gemini can take well over 20s, so the old 20s limit cut real requests short.
+export const AI_REQUEST_TIMEOUT_MS = 90000;
 export const callGeminiWithRetry = async (apiKey, requestBody) => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => {
     controller.abort();
-  }, 20000);
+  }, AI_REQUEST_TIMEOUT_MS);
 
   const selectedGeminiModel = safeGetLocalStorage('selected_gemini_model', 'gemini-3.8-flash').trim() || 'gemini-3.8-flash';
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${selectedGeminiModel}:generateContent`;
@@ -332,6 +334,9 @@ export const executeTextGeneration = async (prompt, geminiRequestBody, ui) => {
 // Phase 28: Specific API Error Formatter for Gemini and Groq
 export const getSpecificApiErrorMessage = (err, provider = 'gemini') => {
   if (!err) return 'Unknown error occurred.';
+  if (err.name === 'AbortError') {
+    return `The AI request timed out (${Math.round(AI_REQUEST_TIMEOUT_MS / 1000)}s). Try again, or switch to another provider.`;
+  }
   const status = err?.status || (typeof err === 'number' ? err : null) || (err?.message && err.message.match(/\b(401|429|403|404|500|503)\b/)?.[1]);
   const message = err?.message || (typeof err === 'string' ? err : '');
 
