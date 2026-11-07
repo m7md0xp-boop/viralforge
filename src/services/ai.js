@@ -1,29 +1,58 @@
 import { getSecret } from './secrets';
 import { providerFetch } from './aiTransport';
-import { safeGetLocalStorage } from '../utils/storage';
+import { AI_PROVIDERS, getProvider, PROVIDER_IDS } from '../config/aiProviders';
+import { schemaExample } from '../config/prompts';
 
-// Gemini API caller with up to 3 attempts and a 90s global budget via AbortController.
-// Long prompts on Gemini can take well over 20s, so the old 20s limit cut real requests short.
+// One request (or one Gemini retry chain) may take up to this long. Long prompts are slow on every provider.
 export const AI_REQUEST_TIMEOUT_MS = 90000;
+
+const ACTIVE_KEY = 'text_provider';
+
+// The provider chosen in Settings. Unknown or legacy values fall back to Gemini.
+export const getActiveProviderId = () => {
+  try {
+    const saved = localStorage.getItem(ACTIVE_KEY);
+    return PROVIDER_IDS.includes(saved) ? saved : 'gemini';
+  } catch {
+    return 'gemini';
+  }
+};
+
+export const setActiveProviderId = (id) => {
+  try {
+    localStorage.setItem(ACTIVE_KEY, PROVIDER_IDS.includes(id) ? id : 'gemini');
+  } catch (err) {
+    console.warn('Failed to save provider choice', err);
+  }
+};
+
+const abortError = () => new DOMException('Aborted', 'AbortError');
+
+// Gemini: up to 3 attempts. The whole chain shares one 90s budget.
 export const callGeminiWithRetry = async (apiKey, requestBody) => {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => {
-    controller.abort();
-  }, AI_REQUEST_TIMEOUT_MS);
-
-  const selectedGeminiModel = safeGetLocalStorage('selected_gemini_model', 'gemini-3.8-flash').trim() || 'gemini-3.8-flash';
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${selectedGeminiModel}:generateContent`;
+  const timeoutId = setTimeout(() => controller.abort(), AI_REQUEST_TIMEOUT_MS);
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${getProvider('gemini').model}:generateContent`;
 
   let lastStatus = 'Network error';
-  const hasGroqFallback = Boolean(getSecret('groq_api_key').trim());
-  const maxAttempts = hasGroqFallback ? 1 : 3;
+  const maxAttempts = 3;
+  const wait = (ms) =>
+    new Promise((resolve, reject) => {
+      const timer = setTimeout(resolve, ms);
+      controller.signal.addEventListener(
+        'abort',
+        () => {
+          clearTimeout(timer);
+          reject(abortError());
+        },
+        { once: true }
+      );
+    });
 
   try {
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        if (controller.signal.aborted) {
-          throw new DOMException('Aborted', 'AbortError');
-        }
+        if (controller.signal.aborted) throw abortError();
 
         const res = await providerFetch(endpoint, {
           method: 'POST',
@@ -33,16 +62,14 @@ export const callGeminiWithRetry = async (apiKey, requestBody) => {
         });
 
         if (res.ok) {
-          const responseJson = await res.json();
-          const rawText = responseJson.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (!rawText) {
-            throw new Error('Empty response');
-          }
-          return JSON.parse(rawText);
+          const json = await res.json();
+          const rawText = json.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (!rawText) throw new Error('Empty response');
+          return normalizeAiResponse(JSON.parse(rawText));
         }
 
         lastStatus = res.status;
-        if (res.status === 401 || res.status === 403 || res.status === 404 || res.status === 400 || res.status === 429) {
+        if ([400, 401, 403, 404, 429].includes(res.status)) {
           let errMsg = `Status ${res.status}`;
           try {
             const errJson = await res.json();
@@ -53,39 +80,16 @@ export const callGeminiWithRetry = async (apiKey, requestBody) => {
           throw err;
         }
 
-        // If retryable status (503, 500, etc.) and attempts remain
-        if (attempt < maxAttempts) {
-          await new Promise((resolve, reject) => {
-            const timer = setTimeout(resolve, 1000 * attempt);
-            controller.signal.addEventListener('abort', () => {
-              clearTimeout(timer);
-              reject(new DOMException('Aborted', 'AbortError'));
-            }, { once: true });
-          });
-        }
+        if (attempt < maxAttempts) await wait(1000 * attempt);
       } catch (err) {
-        if (err.name === 'AbortError' || controller.signal.aborted) {
-          throw err;
-        }
-        if (err.status === 401 || err.status === 403 || err.status === 404 || err.status === 400 || err.status === 429) {
-          throw err;
-        }
+        if (err.name === 'AbortError' || controller.signal.aborted) throw err;
+        if (err.status && [400, 401, 403, 404, 429].includes(err.status)) throw err;
         lastStatus = err.status || err.message || 'Network error';
-        if (attempt < maxAttempts) {
-          await new Promise((resolve, reject) => {
-            const timer = setTimeout(resolve, 1000 * attempt);
-            controller.signal.addEventListener('abort', () => {
-              clearTimeout(timer);
-              reject(new DOMException('Aborted', 'AbortError'));
-            }, { once: true });
-          });
-        }
+        if (attempt < maxAttempts) await wait(1000 * attempt);
       }
     }
 
-    // Max attempts failed
     const finalErr = new Error(`Text generation failed after ${maxAttempts} attempts: ${lastStatus}`);
-    finalErr.isAllAttemptsFailed = true;
     finalErr.status = lastStatus;
     throw finalErr;
   } finally {
@@ -93,272 +97,169 @@ export const callGeminiWithRetry = async (apiKey, requestBody) => {
   }
 };
 
-// Normalizes AI response from Groq (LLaMA) or Gemini
-const normalizeAiResponse = (parsed) => {
+// Request shape per provider. The desktop app adds the key in the main process; the browser build sends it here.
+const JSON_ENDPOINTS = {
+  claude: {
+    url: 'https://api.anthropic.com/v1/messages',
+    headers: (key) => ({
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    }),
+    body: (model, prompt) => ({ model, max_tokens: 4096, messages: [{ role: 'user', content: prompt }] }),
+    read: (json) => (json.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('')
+  },
+  deepseek: {
+    url: 'https://api.deepseek.com/chat/completions',
+    headers: (key) => ({ Authorization: `Bearer ${key}` }),
+    body: (model, prompt) => ({ model, messages: [{ role: 'user', content: prompt }], response_format: { type: 'json_object' } }),
+    read: (json) => json.choices?.[0]?.message?.content
+  },
+  chatgpt: {
+    url: 'https://api.openai.com/v1/chat/completions',
+    headers: (key) => ({ Authorization: `Bearer ${key}` }),
+    body: (model, prompt) => ({ model, messages: [{ role: 'user', content: prompt }], response_format: { type: 'json_object' } }),
+    read: (json) => json.choices?.[0]?.message?.content
+  }
+};
+
+// Pulls a JSON object out of a model reply, even when it is wrapped in code fences or prose.
+const parseJsonLoose = (raw) => {
+  let text = String(raw || '').trim();
+  text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+  try {
+    return JSON.parse(text);
+  } catch {
+    const first = text.indexOf('{');
+    const last = text.lastIndexOf('}');
+    if (first !== -1 && last > first) return JSON.parse(text.slice(first, last + 1));
+    throw new Error('The AI reply was not valid JSON');
+  }
+};
+
+const callJsonProvider = async (providerId, key, model, prompt, signal) => {
+  const cfg = JSON_ENDPOINTS[providerId];
+  const res = await providerFetch(cfg.url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...cfg.headers(key) },
+    body: JSON.stringify(cfg.body(model, prompt)),
+    signal
+  });
+
+  if (!res.ok) {
+    let message = `Status ${res.status}`;
+    try {
+      const errJson = await res.json();
+      message = errJson?.error?.message || errJson?.message || message;
+    } catch {}
+    const err = new Error(message);
+    err.status = res.status;
+    throw err;
+  }
+
+  const json = await res.json();
+  const content = cfg.read(json);
+  if (!content) throw new Error(`Empty content from ${getProvider(providerId).label.en}`);
+  return normalizeAiResponse(parseJsonLoose(content));
+};
+
+// Normalizes AI output so the UI always gets the expected shapes
+export const normalizeAiResponse = (parsed) => {
   if (!parsed || typeof parsed !== 'object') return {};
   const result = { ...parsed };
 
-  // Video titles normalization
-  const rawVideoTitles = result.videoTitles || result.video_titles || result.titles;
-  if (Array.isArray(rawVideoTitles)) {
-    result.videoTitles = rawVideoTitles.map((item) => {
-      if (typeof item === 'string') {
-        return { title: item, score: 85 };
-      }
-      if (item && typeof item === 'object') {
-        return {
-          title: item.title || item.name || '',
-          score: typeof item.score === 'number' ? item.score : (Number(item.score) || 85)
-        };
-      }
-      return { title: String(item || ''), score: 80 };
+  const rawTitles = result.videoTitles || result.video_titles || result.titles;
+  if (Array.isArray(rawTitles)) {
+    result.videoTitles = rawTitles.map((item) => {
+      if (typeof item === 'string') return { title: item, score: 85, seo: 80, ctr: 75 };
+      return {
+        title: item?.title || item?.name || '',
+        score: Number(item?.score) || 85,
+        seo: Number(item?.seo) || 80,
+        ctr: Number(item?.ctr) || 75
+      };
     });
   }
 
-  // Shorts titles normalization
-  const rawShortsTitles = result.shortsTitles || result.shorts_titles || result.shorts;
-  if (Array.isArray(rawShortsTitles)) {
-    result.shortsTitles = rawShortsTitles.map((item) => {
-      if (typeof item === 'string') return item;
-      if (item && typeof item === 'object') return item.title || item.text || String(item);
-      return String(item || '');
-    });
+  const rawHashtags = result.hashtags;
+  if (Array.isArray(rawHashtags)) {
+    result.hashtags = rawHashtags
+      .map((h) => String(h || '').trim())
+      .filter(Boolean)
+      .map((h) => (h.startsWith('#') ? h : `#${h}`));
+  } else if (typeof rawHashtags === 'string') {
+    result.hashtags = rawHashtags.split(/\s+/).filter(Boolean).map((h) => (h.startsWith('#') ? h : `#${h}`));
   }
 
-  // Description normalization
   const rawDescription = result.description ?? result.youtube_description ?? result.desc;
-  if (typeof rawDescription === 'string') {
-    result.description = rawDescription;
-  } else if (Array.isArray(rawDescription)) {
-    result.description = rawDescription.join('\n\n');
+  if (typeof rawDescription === 'string') result.description = rawDescription;
+  else if (Array.isArray(rawDescription)) result.description = rawDescription.join('\n\n');
+
+  if (Array.isArray(result.templates)) {
+    result.templates = result.templates.map((t) => (typeof t === 'string' ? t : t?.text || t?.title || String(t || '')));
   }
 
   return result;
 };
 
-// Groq API caller using selected model from localStorage
-const callGroq = async (groqApiKey, prompt) => {
-  const selectedGroqModel = safeGetLocalStorage('selected_groq_model', 'openai/gpt-oss-120b').trim() || 'openai/gpt-oss-120b';
-  const endpoint = 'https://api.groq.com/openai/v1/chat/completions';
-
-  // Phase 34: Ensure the prompt sent to Groq explicitly tells the model to output JSON
-  const groqPrompt = prompt.includes('Please output the response in JSON format.')
-    ? prompt
-    : `${prompt}\nPlease output the response in JSON format.`;
-
-  const res = await providerFetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${groqApiKey}`
-    },
-    body: JSON.stringify({
-      model: selectedGroqModel,
-      messages: [{ role: 'user', content: groqPrompt }],
-      response_format: { type: 'json_object' }
-    })
-  });
-
-  if (!res.ok) {
-    let errMsg = `Status ${res.status}`;
-    try {
-      const errJson = await res.json();
-      if (errJson?.error?.message) {
-        errMsg = errJson.error.message;
-      } else if (errJson?.message) {
-        errMsg = errJson.message;
-      }
-    } catch {
-      const errText = await res.text().catch(() => '');
-      if (errText) errMsg = errText;
-    }
-    const err = new Error(errMsg);
-    err.status = res.status;
-    throw err;
-  }
-
-  const resJson = await res.json();
-  const rawContent = resJson.choices?.[0]?.message?.content;
-  if (!rawContent) {
-    throw new Error('Empty content from Groq');
-  }
-
-  let parsed;
-  try {
-    let cleanJson = rawContent.trim();
-    if (cleanJson.startsWith('```')) {
-      cleanJson = cleanJson.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-    }
-    parsed = JSON.parse(cleanJson);
-  } catch {
-    const firstBrace = rawContent.indexOf('{');
-    const lastBrace = rawContent.lastIndexOf('}');
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-      parsed = JSON.parse(rawContent.substring(firstBrace, lastBrace + 1));
-    } else {
-      parsed = JSON.parse(rawContent);
-    }
-  }
-
-  return normalizeAiResponse(parsed);
-};
-
-// OpenAI API caller using gpt-4o-mini
-const callOpenAI = async (openaiApiKey, prompt) => {
-  const endpoint = 'https://api.openai.com/v1/chat/completions';
-  const jsonInstructionPrompt = `${prompt}\nEnsure the output is a valid JSON object with keys: "videoTitles", "shortsTitles", "description" (or the specific requested fields).`;
-
-  const res = await providerFetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${openaiApiKey}`
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      messages: [{ role: 'user', content: jsonInstructionPrompt }],
-      response_format: { type: 'json_object' }
-    })
-  });
-
-  if (!res.ok) {
-    let errMsg = `Status ${res.status}`;
-    try {
-      const errJson = await res.json();
-      if (errJson?.error?.message) {
-        errMsg = errJson.error.message;
-      } else if (errJson?.message) {
-        errMsg = errJson.message;
-      }
-    } catch {
-      const errText = await res.text().catch(() => '');
-      if (errText) errMsg = errText;
-    }
-    throw new Error(`OpenAI: ${errMsg}`);
-  }
-
-  const resJson = await res.json();
-  const rawContent = resJson.choices?.[0]?.message?.content;
-  if (!rawContent) {
-    throw new Error('Empty content from OpenAI');
-  }
-
-  const parsed = JSON.parse(rawContent);
-  return normalizeAiResponse(parsed);
-};
-
-// Text generation runner with Gemini primary & Groq fallback
-const executeWithGroqFallback = async (prompt, geminiRequestBody, ui) => {
-  const geminiKey = getSecret('gemini_api_key').trim();
-  const groqKey = getSecret('groq_api_key').trim();
-
-  if (!geminiKey && !groqKey) {
-    ui.showToast(ui.t('toastKeyRequired'), 'error');
-    return null;
-  }
-
-  if (geminiKey) {
-    try {
-      const geminiData = await callGeminiWithRetry(geminiKey, geminiRequestBody);
-      return { data: geminiData, provider: 'gemini' };
-    } catch (geminiErr) {
-      // Without Groq key -> throw Gemini error so only Gemini error is displayed
-      if (!groqKey) {
-        throw { isGeminiOnly: true, error: geminiErr };
-      }
-
-      // With Groq key -> show fallback toast and call Groq
-      ui.showToast(ui.t('toastFallbackToGroq'), 'info');
-
-      try {
-        const groqData = await callGroq(groqKey, prompt);
-        return { data: groqData, provider: 'groq' };
-      } catch (groqErr) {
-        console.warn('Groq fallback failed:', groqErr);
-        throw { isBothFailed: true, geminiError: geminiErr, groqError: groqErr };
-      }
-    }
-  } else {
-    // geminiKey is missing but groqKey is present: trigger Groq
-    ui.showToast(ui.t('toastFallbackToGroq'), 'info');
-    try {
-      const groqData = await callGroq(groqKey, prompt);
-      return { data: groqData, provider: 'groq' };
-    } catch (groqErr) {
-      throw { isBothFailed: true, groqError: groqErr };
-    }
-  }
-};
-
-// Universal Text Generation Dispatcher
+// Runs the request on the active provider.
+// `geminiRequestBody` carries the response schema; other providers get the same schema as a JSON example.
+// Returns { data, provider } or null when no key is saved. Errors are thrown as { provider, error }.
 export const executeTextGeneration = async (prompt, geminiRequestBody, ui) => {
-  const textProvider = safeGetLocalStorage('text_provider', 'gemini');
-  const geminiKey = getSecret('gemini_api_key').trim();
-  const openaiKey = getSecret('openai_api_key').trim();
-  const groqKey = getSecret('groq_api_key').trim();
+  const providerId = getActiveProviderId();
+  const provider = getProvider(providerId);
+  const key = getSecret(provider.keyName).trim();
 
-  if (textProvider === 'chatgpt') {
-    if (!openaiKey) {
-      ui.showToast(ui.t('toastOpenAiKeyRequired'), 'error');
-      return null;
-    }
-    try {
-      const openAiData = await callOpenAI(openaiKey, prompt);
-      return { data: openAiData, provider: 'chatgpt' };
-    } catch (openAiErr) {
-      throw { isChatGpt: true, error: openAiErr };
-    }
-  }
-
-  if (textProvider === 'groq') {
-    if (!groqKey) {
-      ui.showToast(ui.t('toastGroqKeyRequired'), 'error');
-      return null;
-    }
-    try {
-      const groqData = await callGroq(groqKey, prompt);
-      return { data: groqData, provider: 'groq' };
-    } catch (groqErr) {
-      throw { isGroqOnly: true, groqError: groqErr };
-    }
-  }
-
-  // Default: Gemini with Groq fallback
-  if (!geminiKey && !groqKey) {
-    ui.showToast(ui.t('toastGeminiKeyRequired'), 'error');
+  if (!key) {
+    ui.showToast(ui.t('toastProviderKeyRequired').replace('{provider}', provider.label.en), 'error');
     return null;
   }
-  return executeWithGroqFallback(prompt, geminiRequestBody, ui);
+
+  try {
+    if (providerId === 'gemini') {
+      const data = await callGeminiWithRetry(key, geminiRequestBody);
+      return { data, provider: providerId };
+    }
+
+    const schema = geminiRequestBody?.generationConfig?.responseSchema;
+    const fullPrompt = schema
+      ? `${prompt}\n\nReturn ONLY one JSON object matching this example exactly (same keys, no markdown):\n${schemaExample(schema)}`
+      : prompt;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), AI_REQUEST_TIMEOUT_MS);
+    try {
+      const data = await callJsonProvider(providerId, key, provider.model, fullPrompt, controller.signal);
+      return { data, provider: providerId };
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch (error) {
+    throw { provider: providerId, error };
+  }
 };
 
-// Phase 28: Specific API Error Formatter for Gemini and Groq
+// Friendly messages for every provider. Gemini-specific wording is kept where it helps.
 export const getSpecificApiErrorMessage = (err, provider = 'gemini') => {
   if (!err) return 'Unknown error occurred.';
   if (err.name === 'AbortError') {
-    return `The AI request timed out (${Math.round(AI_REQUEST_TIMEOUT_MS / 1000)}s). Try again, or switch to another provider.`;
+    return `The AI request timed out (${Math.round(AI_REQUEST_TIMEOUT_MS / 1000)}s). Try again.`;
   }
-  const status = err?.status || (typeof err === 'number' ? err : null) || (err?.message && err.message.match(/\b(401|429|403|404|500|503)\b/)?.[1]);
+  const name = getProvider(provider).label.en;
+  const status = err?.status || (typeof err === 'number' ? err : null) || (err?.message && err.message.match(/\b(401|402|403|404|429|500|503)\b/)?.[1]);
   const message = err?.message || (typeof err === 'string' ? err : '');
+  const lower = message.toLowerCase();
 
-  if (provider === 'gemini') {
-    if (status == 429 || message.includes('429') || message.toLowerCase().includes('quota') || message.toLowerCase().includes('resource_exhausted')) {
-      return 'Gemini Quota Exceeded. Try again later or use Groq.';
-    }
-    if (status == 401 || message.includes('401') || message.toLowerCase().includes('api_key_invalid') || message.toLowerCase().includes('api key')) {
-      return 'Gemini API Key is invalid.';
-    }
-    return message || `Gemini error (${status || 'Network error'})`;
+  if (status == 401 || status == 403 || /api[_ ]?key|unauthori[sz]ed|invalid.*key|permission/.test(lower)) {
+    return `${name} API key is invalid or not allowed.`;
   }
-
-  if (provider === 'groq') {
-    if (status == 401 || message.includes('401') || message.toLowerCase().includes('invalid_api_key')) {
-      return 'Groq API Key is invalid.';
-    }
-    if (status == 429 || message.includes('429') || message.toLowerCase().includes('rate_limit_exceeded') || message.toLowerCase().includes('quota')) {
-      return 'Groq Quota Exceeded. Try again later.';
-    }
-    return message || `Groq error (${status || 'Network error'})`;
+  if (status == 402 || lower.includes('insufficient') || lower.includes('balance')) {
+    return `${name}: insufficient balance or credits.`;
   }
-
-  return message || `${provider} error`;
+  if (status == 429 || lower.includes('quota') || lower.includes('rate limit') || lower.includes('resource_exhausted')) {
+    return `${name} quota exceeded or rate limited. Try again later.`;
+  }
+  return message || `${name} error (${status || 'Network error'})`;
 };
+
+export { AI_PROVIDERS };

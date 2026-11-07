@@ -4,9 +4,10 @@ import { PRESET_TEMPLATES } from '../config/templates';
 import { USER_CONFIG } from '../config/userConfig';
 import ContentPlanner from './ContentPlanner';
 import ToggleSwitch from './ToggleSwitch';
+import PasteButton from './PasteButton';
 import { Eye, Zap, MessageSquare, Mic, Info, Loader2, FileText, Check, Save, Edit3, ImageIcon, Trash2, UploadCloud, AlertCircle, SlidersHorizontal, X } from 'lucide-react';
 
-export default function InputCard({ setActiveTab, activeTab, lang, gameName, setGameName, episode, setEpisode, chatPrompt, setChatPrompt, isRecording, handleToggleVoiceInput, contentType, setContentType, selectedPlatforms, setSelectedPlatforms, handleGenerate, isLoading, saveStatus, isEditing, handleSaveClick, handleToggleEdit, handleSelectPresetTemplate, channelName, handleChannelNameChange, channelLink, handleChannelLinkChange, template, setTemplate, fileInputRef, handleFileChange, handleDragOver, handleDragEnter, handleDragLeave, handleDrop, uploadedImage, isDragging, imageDetails, handleRemoveImage, imageError, handleResetGenerationOptions, genTitles, setGenTitles, genShorts, setGenShorts, genDescription, setGenDescription, genThumbnails, setGenThumbnails, useCustomTemplate, setUseCustomTemplate }) {
+export default function InputCard({ showToast, setActiveTab, activeTab, lang, gameName, setGameName, episode, setEpisode, chatPrompt, setChatPrompt, isRecording, handleToggleVoiceInput, contentType, setContentType, selectedPlatforms, setSelectedPlatforms, handleGenerate, isLoading, saveStatus, isEditing, handleSaveClick, handleToggleEdit, handleSelectPresetTemplate, channelName, handleChannelNameChange, channelLink, handleChannelLinkChange, template, setTemplate, fileInputRef, handleFileChange, handleDragOver, handleDragEnter, handleDragLeave, handleDrop, uploadedImage, isDragging, imageDetails, handleRemoveImage, imageError, handleResetGenerationOptions, genTitles, setGenTitles, genShorts, setGenShorts, genDescription, setGenDescription, genThumbnails, setGenThumbnails, useCustomTemplate, setUseCustomTemplate }) {
   const [previewPresetId, setPreviewPresetId] = useState('');
   const previewPreset = PRESET_TEMPLATES.find((p) => p.id === previewPresetId) || null;
   return (
@@ -46,9 +47,12 @@ export default function InputCard({ setActiveTab, activeTab, lang, gameName, set
         {activeTab === 'quick' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in">
             <div className="space-y-2">
-              <label htmlFor="game-name" className="block text-sm font-medium text-gray-300">
-                {translations[lang]['gameNameLabel']}
-              </label>
+              <div className="flex items-center justify-between gap-2">
+                <label htmlFor="game-name" className="block text-sm font-medium text-gray-300">
+                  {translations[lang]['gameNameLabel']}
+                </label>
+                <PasteButton lang={lang} onPaste={setGameName} onError={(msg) => showToast?.(msg, 'error')} />
+              </div>
               <input
                 id="game-name"
                 type="text"
@@ -60,9 +64,12 @@ export default function InputCard({ setActiveTab, activeTab, lang, gameName, set
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="episode-number" className="block text-sm font-medium text-gray-300">
-                {translations[lang]['episodeLabel']}
-              </label>
+              <div className="flex items-center justify-between gap-2">
+                <label htmlFor="episode-number" className="block text-sm font-medium text-gray-300">
+                  {translations[lang]['episodeLabel']}
+                </label>
+                <PasteButton lang={lang} onPaste={setEpisode} onError={(msg) => showToast?.(msg, 'error')} />
+              </div>
               <input
                 id="episode-number"
                 type="text"
@@ -388,18 +395,13 @@ export default function InputCard({ setActiveTab, activeTab, lang, gameName, set
             <span>{translations[lang]['resetOptionsBtn']}</span>
           </button>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3 pt-1">
+        {(contentType === 'video' || activeTab === 'chat') ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3 pt-1">
           <ToggleSwitch
             label={translations[lang]['toggleTitles']}
             note={translations[lang]['noteTitles']}
             checked={genTitles}
             onChange={(val) => setGenTitles(val)}
-          />
-          <ToggleSwitch
-            label={translations[lang]['toggleShorts']}
-            note={translations[lang]['noteShorts']}
-            checked={genShorts}
-            onChange={(val) => setGenShorts(val)}
           />
           <ToggleSwitch
             label={translations[lang]['toggleDescription']}
@@ -414,6 +416,13 @@ export default function InputCard({ setActiveTab, activeTab, lang, gameName, set
             onChange={(val) => setGenThumbnails(val)}
           />
         </div>
+        ) : (
+          <p className="text-xs text-gray-400 pt-1">
+            {contentType === 'short'
+              ? (lang === 'ar' ? 'القسم القصير يولّد وصفاً موجزاً وهاشتاقات رائجة تلقائياً.' : 'Short videos generate a brief caption and trending hashtags automatically.')
+              : (lang === 'ar' ? 'قسم البث المباشر يولّد قوالب عناوين وأوصاف مختصرة تلقائياً.' : 'Live streams generate short, catchy stream templates automatically.')}
+          </p>
+        )}
 
         {/* Template Toggle (iOS-style switch with explanatory note) */}
         <div className="pt-2 border-t border-gray-800/80">
