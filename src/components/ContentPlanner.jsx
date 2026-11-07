@@ -1,10 +1,11 @@
 import { translations } from '../i18n/translations';
 import { CONTENT_TYPES, PLATFORMS, PLATFORMS_BY_TYPE } from '../config/platforms';
 
+// The three generation sections. Each one produces its own kind of text.
 const TYPE_LABEL = {
-  video: { ar: 'مقطع فيديو', en: 'Video' },
-  short: { ar: 'شورتس / ريلز', en: 'Shorts / Reels' },
-  live: { ar: 'بث مباشر', en: 'Live stream' }
+  video: { ar: 'المقاطع الطويلة (يوتيوب)', en: 'Long videos (YouTube)' },
+  short: { ar: 'المقاطع القصيرة', en: 'Short videos' },
+  live: { ar: 'البث المباشر', en: 'Live streams' }
 };
 
 export default function ContentPlanner({ lang, contentType, setContentType, selectedPlatforms, setSelectedPlatforms }) {

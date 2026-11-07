@@ -12,6 +12,9 @@ contextBridge.exposeInMainWorld('desktop', {
       ipcRenderer.invoke('ai:request', { provider, path, body, requestId }),
     cancel: (requestId) => ipcRenderer.invoke('ai:cancel', requestId)
   },
+  clipboard: {
+    readText: () => ipcRenderer.invoke('clipboard:readText')
+  },
   profiles: {
     list: () => ipcRenderer.invoke('profiles:list'),
     current: () => ipcRenderer.invoke('profiles:current'),

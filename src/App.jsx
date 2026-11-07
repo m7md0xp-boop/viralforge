@@ -14,6 +14,8 @@ import InputCard from './components/InputCard';
 import { loadContentPlan, buildPlanRules, strictestLimits } from './config/platforms';
 import OutputArea from './components/OutputArea';
 import { setSecret, hasDesktopSecrets, revealSecret } from './services/secrets';
+import { getActiveProviderId, setActiveProviderId } from './services/ai';
+import { getProvider } from './config/aiProviders';
 import { getCurrentProfile, openProfilePicker } from './services/profiles';
 import Dashboard from './components/Dashboard';
 import { useGeneration } from './hooks/useGeneration';
@@ -98,7 +100,18 @@ export default function App() {
   const [contentPlan, setContentPlan] = useState(() => loadContentPlan());
   const contentType = contentPlan.contentType;
   const selectedPlatforms = contentPlan.platforms;
-  const setContentType = (type) => setContentPlan((prev) => ({ ...prev, contentType: type }));
+  // Each section (long video / short / live) keeps its own output while the user switches tabs
+  const sectionCache = useRef({});
+  const setContentType = (type) => {
+    if (type === contentType) return;
+    sectionCache.current[contentType] = { videoTitles, shortsTitles, description, imagePrompt };
+    const saved = sectionCache.current[type] || { videoTitles: [], shortsTitles: [], description: '', imagePrompt: '' };
+    setVideoTitles(saved.videoTitles);
+    setShortsTitles(saved.shortsTitles);
+    setDescription(saved.description);
+    setImagePrompt(saved.imagePrompt);
+    setContentPlan((prev) => ({ ...prev, contentType: type }));
+  };
   const setSelectedPlatforms = (platforms) => setContentPlan((prev) => ({ ...prev, platforms }));
   const planRules = buildPlanRules(selectedPlatforms);
   const limits = strictestLimits(selectedPlatforms);
@@ -107,19 +120,9 @@ export default function App() {
 
   // Settings Modal state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [apiKeyInput, setApiKeyInput] = useState('');
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [openaiApiKeyInput, setOpenaiApiKeyInput] = useState('');
-  const [showOpenaiApiKey, setShowOpenaiApiKey] = useState(false);
-  const [groqApiKeyInput, setGroqApiKeyInput] = useState('');
-  const [showGroqApiKey, setShowGroqApiKey] = useState(false);
-  const [openRouterApiKeyInput, setOpenRouterApiKeyInput] = useState('');
-  const [showOpenRouterApiKey, setShowOpenRouterApiKey] = useState(false);
-  const [textProviderInput, setTextProviderInput] = useState('gemini');
-  const [imageProviderInput, setImageProviderInput] = useState('pollinations');
-  const [geminiModelInput, setGeminiModelInput] = useState('gemini-3.8-flash');
-  const [groqModelInput, setGroqModelInput] = useState('openai/gpt-oss-120b');
-  const [openRouterModelInput, setOpenRouterModelInput] = useState('openrouter/free');
+  const [providerInput, setProviderInput] = useState(() => getActiveProviderId());
+  const [keyInput, setKeyInput] = useState('');
+  const [showKey, setShowKey] = useState(false);
 
   // Loading state for Gemini API
   const [isLoading, setIsLoading] = useState(false);
@@ -301,55 +304,13 @@ export default function App() {
       .replace(/{channel_link}/gi, cLink);
   };
 
-  const handleClearSingleKey = (provider) => {
-    try {
-      if (provider === 'gemini') {
-        setSecret('gemini_api_key', '');
-        setApiKeyInput('');
-      } else if (provider === 'openai') {
-        setSecret('openai_api_key', '');
-        setOpenaiApiKeyInput('');
-      } else if (provider === 'groq') {
-        setSecret('groq_api_key', '');
-        setGroqApiKeyInput('');
-      } else if (provider === 'openrouter') {
-        setSecret('openrouter_api_key', '');
-        setOpenRouterApiKeyInput('');
-      }
-      showToast(translations[lang]['keyClearedSuccess'], 'success');
-    } catch (e) {
-      console.warn('Failed to clear API key from localStorage', e);
-    }
+  const handleClearSingleKey = (providerId) => {
+    setSecret(getProvider(providerId).keyName, '');
+    if (providerId === providerInput) setKeyInput('');
+    showToast(translations[lang]['keyClearedSuccess'], 'success');
   };
 
   // Phase 35: Read from clipboard and paste into API key field
-  const handlePasteKey = async (provider) => {
-    try {
-      if (typeof navigator === 'undefined' || !navigator.clipboard || !navigator.clipboard.readText) {
-        showToast(translations[lang]['speechNotSupportedToast'] || 'Clipboard not supported', 'error');
-        return;
-      }
-      const text = await navigator.clipboard.readText();
-      const trimmed = (text || '').trim();
-      if (!trimmed) {
-        showToast(lang === 'ar' ? 'الحافظة فارغة' : 'Clipboard is empty', 'info');
-        return;
-      }
-      if (provider === 'gemini') {
-        setApiKeyInput(trimmed);
-      } else if (provider === 'openai') {
-        setOpenaiApiKeyInput(trimmed);
-      } else if (provider === 'groq') {
-        setGroqApiKeyInput(trimmed);
-      } else if (provider === 'openrouter') {
-        setOpenRouterApiKeyInput(trimmed);
-      }
-      showToast(translations[lang]['pastedToast'], 'success');
-    } catch (err) {
-      console.warn('Clipboard read error:', err);
-      showToast(lang === 'ar' ? 'يرجى السماح بالوصول إلى الحافظة' : 'Clipboard permission denied', 'error');
-    }
-  };
 
   // Phase 35: Voice Input via Web Speech API in Chat Studio
   const handleToggleVoiceInput = () => {
@@ -427,87 +388,33 @@ export default function App() {
     getCurrentProfile().then(setProfile);
   }, []);
 
+  // Loads the saved key for the chosen provider into the field, so it stays visible
+  const changeProviderInput = async (id) => {
+    setProviderInput(id);
+    setKeyInput(await revealSecret(getProvider(id).keyName));
+    setShowKey(false);
+  };
+
   const openSettings = async () => {
-    // Saved keys are read from this profile's store when Settings opens, so they stay visible in the fields
-    const [savedKey, savedOpenaiKey, savedGroqKey, savedOpenRouterKey] = await Promise.all([
-      revealSecret('gemini_api_key'),
-      revealSecret('openai_api_key'),
-      revealSecret('groq_api_key'),
-      revealSecret('openrouter_api_key')
-    ]);
-    const savedTextProvider = safeGetLocalStorage('text_provider', 'gemini');
-    const savedImageProvider = safeGetLocalStorage('image_provider', 'pollinations');
-    const savedGeminiModel = safeGetLocalStorage('selected_gemini_model', 'gemini-3.8-flash');
-    const savedGroqModel = safeGetLocalStorage('selected_groq_model', 'openai/gpt-oss-120b');
-    const savedOpenRouterModel = safeGetLocalStorage('selected_openrouter_model', 'openrouter/free');
-
-    setApiKeyInput(savedKey);
-    setOpenaiApiKeyInput(savedOpenaiKey);
-    setGroqApiKeyInput(savedGroqKey);
-    setOpenRouterApiKeyInput(savedOpenRouterKey);
-    setTextProviderInput(savedTextProvider);
-    setImageProviderInput(savedImageProvider);
-    setGeminiModelInput(savedGeminiModel);
-    setGroqModelInput(savedGroqModel);
-    setOpenRouterModelInput(savedOpenRouterModel);
-
-    setShowApiKey(false);
-    setShowOpenaiApiKey(false);
-    setShowGroqApiKey(false);
-    setShowOpenRouterApiKey(false);
+    const id = getActiveProviderId();
+    setProviderInput(id);
+    setKeyInput(await revealSecret(getProvider(id).keyName));
+    setShowKey(false);
     setIsSettingsOpen(true);
   };
 
   // Desktop: an empty field keeps the saved key. Browser: an empty field clears it (old behaviour).
-  const saveKeyField = (name, value) => {
-    if (hasDesktopSecrets() && !value.trim()) return;
-    setSecret(name, value);
-  };
 
   const handleSaveApiKey = () => {
-    try {
-      saveKeyField('gemini_api_key', apiKeyInput);
-      saveKeyField('openai_api_key', openaiApiKeyInput);
-      saveKeyField('groq_api_key', groqApiKeyInput);
-      saveKeyField('openrouter_api_key', openRouterApiKeyInput);
-      localStorage.setItem('text_provider', textProviderInput);
-      localStorage.setItem('image_provider', imageProviderInput);
-      localStorage.setItem('selected_gemini_model', geminiModelInput);
-      localStorage.setItem('selected_groq_model', groqModelInput);
-      localStorage.setItem('selected_openrouter_model', openRouterModelInput);
-      showToast(t('toastApiKeySaved'), 'success');
-    } catch (e) {
-      console.warn('Failed to save settings to localStorage', e);
-    }
+    const provider = getProvider(providerInput);
+    const value = keyInput.trim();
+    // Desktop: an empty field keeps the saved key (use Clear to remove it). Browser: empty clears it.
+    if (value || !hasDesktopSecrets()) setSecret(provider.keyName, value);
+    setActiveProviderId(providerInput);
+    showToast(t('toastApiKeySaved'), 'success');
     setIsSettingsOpen(false);
   };
 
-  const handleClearApiKey = () => {
-    try {
-      setSecret('gemini_api_key', '');
-      setSecret('openai_api_key', '');
-      setSecret('groq_api_key', '');
-      setSecret('openrouter_api_key', '');
-      setApiKeyInput('');
-      setOpenaiApiKeyInput('');
-      setGroqApiKeyInput('');
-      setOpenRouterApiKeyInput('');
-      setTextProviderInput('gemini');
-      setImageProviderInput('pollinations');
-      setGeminiModelInput('gemini-3.8-flash');
-      setGroqModelInput('openai/gpt-oss-120b');
-      setOpenRouterModelInput('openrouter/free');
-      localStorage.setItem('text_provider', 'gemini');
-      localStorage.setItem('image_provider', 'pollinations');
-      localStorage.setItem('selected_gemini_model', 'gemini-3.8-flash');
-      localStorage.setItem('selected_groq_model', 'openai/gpt-oss-120b');
-      localStorage.setItem('selected_openrouter_model', 'openrouter/free');
-      showToast(t('toastApiKeyCleared'), 'info');
-    } catch (e) {
-      console.warn('Failed to remove API keys from localStorage', e);
-    }
-    setIsSettingsOpen(false);
-  };
 
   const handleBackdropClick = (e) => {
     if (e.target === e.currentTarget) {
@@ -604,12 +511,6 @@ export default function App() {
   };
 
   const {
-    getCleanInputs,
-    generateTitlesData,
-    generateShortsData,
-    generateDescriptionData,
-    ensureValidImageUrl,
-    generateImagePromptFromTitles,
     handleGenerationError,
     handleGenerate,
     handleRegenerateTitles,
@@ -620,7 +521,7 @@ export default function App() {
     handleCopyAndOpenGemini,
     handleCopyAndOpenChatGPT
   } = useGeneration({
-    contentType,
+    section: contentType,
     selectedPlatforms,
     gameName,
     episode,
@@ -653,11 +554,7 @@ export default function App() {
     setCopiedSection
   });
 
-  const hasGenerated =
-    (genTitles && videoTitles.length > 0) ||
-    (genShorts && shortsTitles.length > 0) ||
-    (genDescription && Boolean(description)) ||
-    Boolean(imagePrompt);
+  const hasGenerated = videoTitles.length > 0 || shortsTitles.length > 0 || Boolean(description) || Boolean(imagePrompt);
 
   return (
     <div
@@ -669,8 +566,8 @@ export default function App() {
       {/* Main Content */}
       <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col gap-6 pb-16 sm:pb-20">
         {view === 'dashboard' && <Dashboard lang={lang} />}
-        {view !== 'dashboard' && <InputCard setActiveTab={setActiveTab} activeTab={activeTab} lang={lang} gameName={gameName} setGameName={setGameName} episode={episode} setEpisode={setEpisode} chatPrompt={chatPrompt} setChatPrompt={setChatPrompt} isRecording={isRecording} handleToggleVoiceInput={handleToggleVoiceInput} contentType={contentType} setContentType={setContentType} selectedPlatforms={selectedPlatforms} setSelectedPlatforms={setSelectedPlatforms} handleGenerate={handleGenerate} isLoading={isLoading} saveStatus={saveStatus} isEditing={isEditing} handleSaveClick={handleSaveClick} handleToggleEdit={handleToggleEdit} handleSelectPresetTemplate={handleSelectPresetTemplate} channelName={channelName} handleChannelNameChange={handleChannelNameChange} channelLink={channelLink} handleChannelLinkChange={handleChannelLinkChange} template={template} setTemplate={setTemplate} fileInputRef={fileInputRef} handleFileChange={handleFileChange} handleDragOver={handleDragOver} handleDragEnter={handleDragEnter} handleDragLeave={handleDragLeave} handleDrop={handleDrop} uploadedImage={uploadedImage} isDragging={isDragging} imageDetails={imageDetails} handleRemoveImage={handleRemoveImage} imageError={imageError} handleResetGenerationOptions={handleResetGenerationOptions} genTitles={genTitles} setGenTitles={setGenTitles} genShorts={genShorts} setGenShorts={setGenShorts} genDescription={genDescription} setGenDescription={setGenDescription} genThumbnails={genThumbnails} setGenThumbnails={setGenThumbnails} useCustomTemplate={useCustomTemplate} setUseCustomTemplate={setUseCustomTemplate} />}
-        {view !== 'dashboard' && <OutputArea limits={limits} hasGenerated={hasGenerated} lang={lang} handleExportAll={handleExportAll} genThumbnails={genThumbnails} imagePrompt={imagePrompt} setImagePrompt={setImagePrompt} handleCopyAndOpenGemini={handleCopyAndOpenGemini} handleCopyAndOpenChatGPT={handleCopyAndOpenChatGPT} genTitles={genTitles} videoTitles={videoTitles} handleRegenerateTitles={handleRegenerateTitles} isRegeneratingTitles={isRegeneratingTitles} copyToClipboard={copyToClipboard} copiedSection={copiedSection} genShorts={genShorts} shortsTitles={shortsTitles} handleRegenerateShorts={handleRegenerateShorts} isRegeneratingShorts={isRegeneratingShorts} genDescription={genDescription} description={description} handleRegenerateDescription={handleRegenerateDescription} isRegeneratingDescription={isRegeneratingDescription} />}
+        {view !== 'dashboard' && <InputCard showToast={showToast} setActiveTab={setActiveTab} activeTab={activeTab} lang={lang} gameName={gameName} setGameName={setGameName} episode={episode} setEpisode={setEpisode} chatPrompt={chatPrompt} setChatPrompt={setChatPrompt} isRecording={isRecording} handleToggleVoiceInput={handleToggleVoiceInput} contentType={contentType} setContentType={setContentType} selectedPlatforms={selectedPlatforms} setSelectedPlatforms={setSelectedPlatforms} handleGenerate={handleGenerate} isLoading={isLoading} saveStatus={saveStatus} isEditing={isEditing} handleSaveClick={handleSaveClick} handleToggleEdit={handleToggleEdit} handleSelectPresetTemplate={handleSelectPresetTemplate} channelName={channelName} handleChannelNameChange={handleChannelNameChange} channelLink={channelLink} handleChannelLinkChange={handleChannelLinkChange} template={template} setTemplate={setTemplate} fileInputRef={fileInputRef} handleFileChange={handleFileChange} handleDragOver={handleDragOver} handleDragEnter={handleDragEnter} handleDragLeave={handleDragLeave} handleDrop={handleDrop} uploadedImage={uploadedImage} isDragging={isDragging} imageDetails={imageDetails} handleRemoveImage={handleRemoveImage} imageError={imageError} handleResetGenerationOptions={handleResetGenerationOptions} genTitles={genTitles} setGenTitles={setGenTitles} genShorts={genShorts} setGenShorts={setGenShorts} genDescription={genDescription} setGenDescription={setGenDescription} genThumbnails={genThumbnails} setGenThumbnails={setGenThumbnails} useCustomTemplate={useCustomTemplate} setUseCustomTemplate={setUseCustomTemplate} />}
+        {view !== 'dashboard' && <OutputArea section={contentType} limits={limits} hasGenerated={hasGenerated} lang={lang} handleExportAll={handleExportAll} genThumbnails={genThumbnails} imagePrompt={imagePrompt} setImagePrompt={setImagePrompt} handleCopyAndOpenGemini={handleCopyAndOpenGemini} handleCopyAndOpenChatGPT={handleCopyAndOpenChatGPT} genTitles={genTitles} videoTitles={videoTitles} handleRegenerateTitles={handleRegenerateTitles} isRegeneratingTitles={isRegeneratingTitles} copyToClipboard={copyToClipboard} copiedSection={copiedSection} genShorts={genShorts} shortsTitles={shortsTitles} handleRegenerateShorts={handleRegenerateShorts} isRegeneratingShorts={isRegeneratingShorts} genDescription={genDescription} description={description} handleRegenerateDescription={handleRegenerateDescription} isRegeneratingDescription={isRegeneratingDescription} />}
       </main>
 
       {/* Phase 37: Sticky Owner Signature / Copyright Watermark Footer */}
@@ -718,7 +615,7 @@ export default function App() {
         </div>
       )}
 
-      <SettingsModal isSettingsOpen={isSettingsOpen} handleBackdropClick={handleBackdropClick} lang={lang} setIsSettingsOpen={setIsSettingsOpen} handlePasteKey={handlePasteKey} handleClearSingleKey={handleClearSingleKey} showApiKey={showApiKey} apiKeyInput={apiKeyInput} setApiKeyInput={setApiKeyInput} setShowApiKey={setShowApiKey} showOpenaiApiKey={showOpenaiApiKey} openaiApiKeyInput={openaiApiKeyInput} setOpenaiApiKeyInput={setOpenaiApiKeyInput} setShowOpenaiApiKey={setShowOpenaiApiKey} showGroqApiKey={showGroqApiKey} groqApiKeyInput={groqApiKeyInput} setGroqApiKeyInput={setGroqApiKeyInput} setShowGroqApiKey={setShowGroqApiKey} showOpenRouterApiKey={showOpenRouterApiKey} openRouterApiKeyInput={openRouterApiKeyInput} setOpenRouterApiKeyInput={setOpenRouterApiKeyInput} setShowOpenRouterApiKey={setShowOpenRouterApiKey} textProviderInput={textProviderInput} setTextProviderInput={setTextProviderInput} handleClearApiKey={handleClearApiKey} handleSaveApiKey={handleSaveApiKey} />
+      <SettingsModal isSettingsOpen={isSettingsOpen} handleBackdropClick={handleBackdropClick} lang={lang} setIsSettingsOpen={setIsSettingsOpen} providerInput={providerInput} setProviderInput={changeProviderInput} keyInput={keyInput} setKeyInput={setKeyInput} showKey={showKey} setShowKey={setShowKey} showToast={showToast} handleClearSingleKey={handleClearSingleKey} handleSaveApiKey={handleSaveApiKey} />
     </div>
   );
 }
