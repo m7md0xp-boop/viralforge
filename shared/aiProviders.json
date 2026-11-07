@@ -1,0 +1,333 @@
+{
+  "policyCheckedAt": "2026-11",
+  "note": "Model IDs were checked against each provider's deprecation or docs pages (Nov 2026). Free-tier limits change often: re-check the pricing page before publishing the usage labels.",
+  "usageTypes": {
+    "free": {
+      "label": {
+        "ar": "(مجاني بالكامل)",
+        "en": "(Fully free)"
+      },
+      "color": "emerald"
+    },
+    "free-limit": {
+      "label": {
+        "ar": "(له حد استخدام يومي/شهري مجاني)",
+        "en": "(Free daily/monthly limit)"
+      },
+      "color": "sky"
+    },
+    "free-then-paid": {
+      "label": {
+        "ar": "(حد استخدام مجاني، ثم يتطلب اشتراك/دفع)",
+        "en": "(Free limit, then subscription/payment)"
+      },
+      "color": "amber"
+    },
+    "paid": {
+      "label": {
+        "ar": "(يتطلب اشتراك / مدفوع)",
+        "en": "(Paid subscription required)"
+      },
+      "color": "rose"
+    }
+  },
+  "providers": [
+    {
+      "id": "gemini",
+      "label": {
+        "ar": "Google Gemini",
+        "en": "Google Gemini"
+      },
+      "format": "gemini",
+      "keyName": "gemini_api_key",
+      "host": "generativelanguage.googleapis.com",
+      "base": "https://generativelanguage.googleapis.com",
+      "model": "gemini-3.8-flash",
+      "auth": {
+        "header": "x-goog-api-key",
+        "prefix": ""
+      },
+      "placeholder": "AIza...",
+      "keyUrl": "https://aistudio.google.com/app/apikey",
+      "usage": "free-limit",
+      "usageNote": {
+        "ar": "مفتاح مجاني من Google AI Studio بحدود يومية. الطلبات قد تُستخدم لتحسين منتجات Google.",
+        "en": "Free key from Google AI Studio with daily limits. Requests may be used to improve Google products."
+      }
+    },
+    {
+      "id": "groq",
+      "label": {
+        "ar": "Groq",
+        "en": "Groq"
+      },
+      "format": "openai",
+      "keyName": "groq_api_key",
+      "host": "api.groq.com",
+      "base": "https://api.groq.com",
+      "path": "/openai/v1/chat/completions",
+      "model": "openai/gpt-oss-120b",
+      "auth": {
+        "header": "Authorization",
+        "prefix": "Bearer "
+      },
+      "placeholder": "gsk_...",
+      "keyUrl": "https://console.groq.com/keys",
+      "usage": "free-limit",
+      "usageNote": {
+        "ar": "حد مجاني يومي بدون بطاقة دفع، وهو سريع جداً للتوليد.",
+        "en": "Free daily limit with no card required. Very fast for generation."
+      }
+    },
+    {
+      "id": "openrouter",
+      "label": {
+        "ar": "OpenRouter",
+        "en": "OpenRouter"
+      },
+      "format": "openai",
+      "keyName": "openrouter_api_key",
+      "host": "openrouter.ai",
+      "base": "https://openrouter.ai",
+      "path": "/api/v1/chat/completions",
+      "model": "openrouter/free",
+      "auth": {
+        "header": "Authorization",
+        "prefix": "Bearer "
+      },
+      "placeholder": "sk-or-...",
+      "keyUrl": "https://openrouter.ai/keys",
+      "usage": "free-limit",
+      "usageNote": {
+        "ar": "النماذج المجانية لها 50 طلباً يومياً، ترتفع إلى 1000 بعد شحن 10 دولار.",
+        "en": "Free models allow 50 requests per day, rising to 1,000 after a $10 top-up."
+      }
+    },
+    {
+      "id": "mistral",
+      "label": {
+        "ar": "Mistral AI",
+        "en": "Mistral AI"
+      },
+      "format": "openai",
+      "keyName": "mistral_api_key",
+      "host": "api.mistral.ai",
+      "base": "https://api.mistral.ai",
+      "path": "/v1/chat/completions",
+      "model": "mistral-small-latest",
+      "auth": {
+        "header": "Authorization",
+        "prefix": "Bearer "
+      },
+      "placeholder": "...",
+      "keyUrl": "https://console.mistral.ai/api-keys",
+      "usage": "free-limit",
+      "usageNote": {
+        "ar": "خطة Experiment مجانية بحد شهري من الرموز، وتحتاج إلى تحقق برقم هاتف. الطلبات قد تُستخدم لتدريب النماذج.",
+        "en": "Free Experiment plan with a monthly token quota. Needs a verified phone number. Requests may be used for model training."
+      }
+    },
+    {
+      "id": "cerebras",
+      "label": {
+        "ar": "Cerebras",
+        "en": "Cerebras"
+      },
+      "format": "openai",
+      "keyName": "cerebras_api_key",
+      "host": "api.cerebras.ai",
+      "base": "https://api.cerebras.ai",
+      "path": "/v1/chat/completions",
+      "model": "gpt-oss-120b",
+      "auth": {
+        "header": "Authorization",
+        "prefix": "Bearer "
+      },
+      "placeholder": "csk-...",
+      "keyUrl": "https://cloud.cerebras.ai/",
+      "usage": "free-limit",
+      "usageNote": {
+        "ar": "حد مجاني يومي من الرموز بدون بطاقة دفع.",
+        "en": "Free daily token limit with no card required."
+      }
+    },
+    {
+      "id": "cohere",
+      "label": {
+        "ar": "Cohere",
+        "en": "Cohere"
+      },
+      "format": "cohere",
+      "keyName": "cohere_api_key",
+      "host": "api.cohere.com",
+      "base": "https://api.cohere.com",
+      "path": "/v2/chat",
+      "model": "command-a-03-2025",
+      "auth": {
+        "header": "Authorization",
+        "prefix": "Bearer "
+      },
+      "placeholder": "...",
+      "keyUrl": "https://dashboard.cohere.com/api-keys",
+      "usage": "free-then-paid",
+      "usageNote": {
+        "ar": "المفتاح التجريبي مجاني لكنه للاستخدام غير التجاري وبحد شهري. الاستخدام الإنتاجي يتطلب دفعاً.",
+        "en": "The trial key is free but for non-commercial use with a monthly cap. Production use requires payment."
+      }
+    },
+    {
+      "id": "deepseek",
+      "label": {
+        "ar": "DeepSeek",
+        "en": "DeepSeek"
+      },
+      "format": "openai",
+      "keyName": "deepseek_api_key",
+      "host": "api.deepseek.com",
+      "base": "https://api.deepseek.com",
+      "path": "/chat/completions",
+      "model": "deepseek-flash",
+      "auth": {
+        "header": "Authorization",
+        "prefix": "Bearer "
+      },
+      "placeholder": "sk-...",
+      "keyUrl": "https://platform.deepseek.com/api_keys",
+      "usage": "free-then-paid",
+      "usageNote": {
+        "ar": "الدفع حسب الاستخدام بعد شحن الرصيد. قد تتوفر أرصدة تجريبية للحسابات الجديدة (غير متحقق منها).",
+        "en": "Pay-as-you-go after topping up. New accounts may get trial credit (not verified)."
+      }
+    },
+    {
+      "id": "claude",
+      "label": {
+        "ar": "Anthropic Claude",
+        "en": "Anthropic Claude"
+      },
+      "format": "anthropic",
+      "keyName": "claude_api_key",
+      "host": "api.anthropic.com",
+      "base": "https://api.anthropic.com",
+      "path": "/v1/messages",
+      "model": "claude-haiku-5-5",
+      "auth": {
+        "header": "x-api-key",
+        "prefix": ""
+      },
+      "headers": {
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true"
+      },
+      "placeholder": "sk-ant-...",
+      "keyUrl": "https://console.anthropic.com/settings/keys",
+      "usage": "paid",
+      "usageNote": {
+        "ar": "واجهة API مدفوعة. تحتاج إلى رصيد في حساب Anthropic Console.",
+        "en": "Paid API. You need credit in your Anthropic Console account."
+      }
+    },
+    {
+      "id": "chatgpt",
+      "label": {
+        "ar": "ChatGPT (OpenAI)",
+        "en": "ChatGPT (OpenAI)"
+      },
+      "format": "openai",
+      "keyName": "openai_api_key",
+      "host": "api.openai.com",
+      "base": "https://api.openai.com",
+      "path": "/v1/chat/completions",
+      "model": "gpt-4o-mini",
+      "auth": {
+        "header": "Authorization",
+        "prefix": "Bearer "
+      },
+      "placeholder": "sk-...",
+      "keyUrl": "https://platform.openai.com/api-keys",
+      "usage": "paid",
+      "usageNote": {
+        "ar": "واجهة API مدفوعة حسب الاستخدام. تحتاج إلى رصيد في حساب OpenAI.",
+        "en": "Pay-as-you-go API. You need credit in your OpenAI account."
+      }
+    }
+  ],
+  "imageProviders": [
+    {
+      "id": "cloudflare-image",
+      "label": {
+        "ar": "Cloudflare Workers AI (FLUX)",
+        "en": "Cloudflare Workers AI (FLUX)"
+      },
+      "format": "cloudflare-image",
+      "keyName": "cloudflare_api_key",
+      "keyFormat": "ACCOUNT_ID:API_TOKEN",
+      "host": "api.cloudflare.com",
+      "base": "https://api.cloudflare.com",
+      "path": "/client/v4/accounts/{accountId}/ai/run/@cf/black-forest-labs/flux-1-schnell",
+      "model": "@cf/black-forest-labs/flux-1-schnell",
+      "auth": {
+        "header": "Authorization",
+        "prefix": "Bearer "
+      },
+      "placeholder": "ACCOUNT_ID:API_TOKEN",
+      "keyUrl": "https://dash.cloudflare.com/profile/api-tokens",
+      "usage": "free-limit",
+      "usageNote": {
+        "ar": "10,000 وحدة مجانية يومياً (نحو 170 صورة)، وتتجدد كل يوم. تحتاج معرّف الحساب والتوكن.",
+        "en": "10,000 free units per day (about 170 images), reset daily. Needs your account ID and an API token."
+      },
+      "supportsReference": false
+    },
+    {
+      "id": "gemini-image",
+      "label": {
+        "ar": "Google Gemini (صور)",
+        "en": "Google Gemini (images)"
+      },
+      "format": "gemini-image",
+      "keyName": "gemini_api_key",
+      "host": "generativelanguage.googleapis.com",
+      "base": "https://generativelanguage.googleapis.com",
+      "path": "/v1beta/models/gemini-3.1-flash-image:generateContent",
+      "model": "gemini-3.1-flash-image",
+      "auth": {
+        "header": "x-goog-api-key",
+        "prefix": ""
+      },
+      "placeholder": "AIza...",
+      "keyUrl": "https://aistudio.google.com/app/apikey",
+      "usage": "paid",
+      "usageNote": {
+        "ar": "لا يتوفر توليد الصور في الخطة المجانية، ويتطلب دفعة مسبقة. يدعم الصورة المرجعية (وجهك).",
+        "en": "Image generation is not on the free tier and needs a prepaid balance. Supports a reference photo (your face)."
+      },
+      "supportsReference": true
+    },
+    {
+      "id": "openai-image",
+      "label": {
+        "ar": "OpenAI (gpt-image)",
+        "en": "OpenAI (gpt-image)"
+      },
+      "format": "openai-image",
+      "keyName": "openai_api_key",
+      "host": "api.openai.com",
+      "base": "https://api.openai.com",
+      "path": "/v1/images/generations",
+      "model": "gpt-image-2",
+      "auth": {
+        "header": "Authorization",
+        "prefix": "Bearer "
+      },
+      "placeholder": "sk-...",
+      "keyUrl": "https://platform.openai.com/api-keys",
+      "usage": "paid",
+      "usageNote": {
+        "ar": "واجهة مدفوعة. لا تدعم هذه الإعدادات إرسال صورتك المرجعية.",
+        "en": "Paid API. This integration does not send your reference photo."
+      },
+      "supportsReference": false
+    }
+  ]
+}

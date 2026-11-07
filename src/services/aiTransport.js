@@ -1,13 +1,10 @@
 import { hasDesktopSecrets } from './secrets';
+import { bytesToBase64 } from './imageRequests';
 
-// Maps the API host to the provider id used by the desktop main process.
-// Provider ids match src/config/aiProviders.js and electron/main.cjs.
-const HOST_TO_PROVIDER = {
-  'generativelanguage.googleapis.com': 'gemini',
-  'api.anthropic.com': 'claude',
-  'api.deepseek.com': 'deepseek',
-  'api.openai.com': 'chatgpt'
-};
+import { AI_PROVIDERS } from '../config/aiProviders';
+
+// Maps the API host to the provider id used by the desktop main process (both come from shared/aiProviders.json).
+const HOST_TO_PROVIDER = Object.fromEntries(AI_PROVIDERS.map((p) => [p.host, p.id]));
 
 const abortError = () => new DOMException('Aborted', 'AbortError');
 const newRequestId = () =>
@@ -56,3 +53,59 @@ export async function providerFetch(url, init = {}) {
   }
   return fetch(url, init);
 }
+
+// Explicit-provider request, used for image providers (they share hosts with text providers, so the
+// host map cannot tell them apart). Returns a plain object:
+//   { ok, status, contentType, json, base64, text }
+// `json` is set for JSON replies, `base64` for binary replies (binary: true).
+export async function providerPost({ providerId, base, path, browserPath, headers = {}, body, signal, binary = false }) {
+  const bridge = typeof window !== 'undefined' && window.desktop && window.desktop.ai;
+
+  if (bridge && hasDesktopSecrets()) {
+    if (signal && signal.aborted) throw abortError();
+    const requestId = newRequestId();
+    const call = bridge.request({
+      provider: providerId,
+      path,
+      body,
+      requestId,
+      responseType: binary ? 'base64' : 'text'
+    });
+
+    let onAbort;
+    const aborted = new Promise((_, reject) => {
+      onAbort = () => {
+        if (bridge.cancel) bridge.cancel(requestId).catch(() => {});
+        reject(abortError());
+      };
+      if (signal) signal.addEventListener('abort', onAbort, { once: true });
+    });
+    try {
+      const result = await (signal ? Promise.race([call, aborted]) : call);
+      return shape(result.status, result.contentType || '', binary ? null : result.body, binary ? result.body : null);
+    } finally {
+      if (signal) signal.removeEventListener('abort', onAbort);
+    }
+  }
+
+  // Browser build: the caller's key is already in `headers`
+  const res = await fetch(`${base}${browserPath || path}`, { method: 'POST', headers, body, signal });
+  const contentType = res.headers.get('content-type') || '';
+  if (binary) {
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    return shape(res.status, contentType, null, bytesToBase64(bytes));
+  }
+  return shape(res.status, contentType, await res.text(), null);
+}
+
+const shape = (status, contentType, text, base64) => {
+  let json = null;
+  if (text) {
+    try {
+      json = JSON.parse(text);
+    } catch {
+      json = null;
+    }
+  }
+  return { ok: status >= 200 && status < 300, status, contentType, json, text, base64 };
+};

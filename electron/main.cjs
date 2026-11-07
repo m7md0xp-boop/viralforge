@@ -5,9 +5,14 @@ const { pathToFileURL } = require('url');
 const crypto = require('crypto');
 
 const DIST_DIR = path.join(__dirname, '..', 'dist');
-const SECRET_NAMES = ['gemini_api_key', 'claude_api_key', 'deepseek_api_key', 'openai_api_key'];
+const catalog = require('../shared/aiProviders.json');
+// Text and image providers together. Keys are unique by name (Gemini text and image share one key).
+const ALL_PROVIDERS = [...catalog.providers, ...catalog.imageProviders];
+const SECRET_NAMES = [...new Set(ALL_PROVIDERS.map((p) => p.keyName))];
 // Longer than the renderer's 90 s budget, so the renderer always decides when a request has timed out
 const AI_TIMEOUT_MS = 100000;
+// Largest request body accepted (a reference photo is sent as base64 inside the JSON)
+const MAX_BODY_CHARS = 12000000;
 const DEFAULT_PROFILE_ID = 'default';
 
 // Serve the built app from app:// so module scripts load and fetch() to external APIs works
@@ -76,17 +81,29 @@ function findProfileWindow(profileId) {
 
 // ----- Encrypted API keys (OS keychain via safeStorage) -----
 // Keys never leave this process except when the user opens Settings (secrets:reveal).
-// Keep the provider ids in sync with src/config/aiProviders.js and src/services/aiTransport.js
-const PROVIDERS = {
-  gemini: { base: 'https://generativelanguage.googleapis.com', keyName: 'gemini_api_key', auth: (k) => ({ 'x-goog-api-key': k }) },
-  claude: {
-    base: 'https://api.anthropic.com',
-    keyName: 'claude_api_key',
-    auth: (k) => ({ 'x-api-key': k, 'anthropic-version': '2023-06-01' })
-  },
-  deepseek: { base: 'https://api.deepseek.com', keyName: 'deepseek_api_key', auth: (k) => ({ Authorization: `Bearer ${k}` }) },
-  chatgpt: { base: 'https://api.openai.com', keyName: 'openai_api_key', auth: (k) => ({ Authorization: `Bearer ${k}` }) }
-};
+// Provider table built from shared/aiProviders.json (the same file the renderer uses).
+// The renderer sends the provider id, a path and the body. This process adds the saved key.
+const PROVIDERS = Object.fromEntries(
+  ALL_PROVIDERS.map((p) => [
+    p.id,
+    {
+      base: p.base,
+      keyName: p.keyName,
+      accountKey: p.path && p.path.includes('{accountId}'), // Cloudflare: key is ACCOUNT_ID:TOKEN
+      auth: (key) => ({
+        ...(p.auth && p.auth.header ? { [p.auth.header]: `${p.auth.prefix || ''}${key}` } : {}),
+        ...(p.headers || {})
+      })
+    }
+  ])
+);
+
+// Splits an ACCOUNT_ID:TOKEN key. Returns the token and the account id, or throws.
+function splitAccountKey(key) {
+  const idx = key.indexOf(':');
+  if (idx < 1 || idx === key.length - 1) throw new Error('Key must look like ACCOUNT_ID:API_TOKEN');
+  return { accountId: key.slice(0, idx), token: key.slice(idx + 1) };
+}
 
 function readSecrets(profileId) {
   try {
@@ -189,15 +206,24 @@ function registerIpcHandlers() {
     if (!provider) throw new Error('Unknown provider');
     const path_ = args.path;
     if (typeof path_ !== 'string' || !path_.startsWith('/') || path_.includes('..')) throw new Error('Invalid path');
-    if (typeof args.body !== 'string' || args.body.length > 2000000) throw new Error('Invalid body');
+    if (typeof args.body !== 'string' || args.body.length > MAX_BODY_CHARS) throw new Error('Invalid body');
+    const binary = args.responseType === 'base64';
     const requestId = typeof args.requestId === 'string' && args.requestId.length <= 64 ? args.requestId : null;
 
-    const key = readSecrets(profileId)[provider.keyName];
-    if (!key) {
+    const savedKey = readSecrets(profileId)[provider.keyName];
+    if (!savedKey) {
       return { status: 401, body: JSON.stringify({ error: { message: 'API key is not saved' } }) };
     }
 
-    const url = new URL(path_, provider.base).toString();
+    let key = savedKey;
+    let resolvedPath = path_;
+    if (provider.accountKey) {
+      const { accountId, token } = splitAccountKey(savedKey);
+      key = token;
+      resolvedPath = path_.replace('{accountId}', encodeURIComponent(accountId));
+    }
+
+    const url = new URL(resolvedPath, provider.base).toString();
     const controller = new AbortController();
     if (requestId) inflight.set(requestId, controller);
     const timer = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
@@ -208,6 +234,10 @@ function registerIpcHandlers() {
         body: args.body,
         signal: controller.signal
       });
+      if (binary) {
+        const bytes = Buffer.from(await res.arrayBuffer());
+        return { status: res.status, body: bytes.toString('base64'), contentType: res.headers.get('content-type') || '' };
+      }
       return { status: res.status, body: await res.text() };
     } catch (err) {
       const message = controller.signal.aborted

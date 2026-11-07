@@ -1,6 +1,7 @@
 import { getSecret } from './secrets';
 import { providerFetch } from './aiTransport';
 import { AI_PROVIDERS, getProvider, PROVIDER_IDS } from '../config/aiProviders';
+import { buildJsonRequest, readJsonResponse, parseJsonLoose } from './providerRequests';
 import { schemaExample } from '../config/prompts';
 
 // One request (or one Gemini retry chain) may take up to this long. Long prompts are slow on every provider.
@@ -97,52 +98,12 @@ export const callGeminiWithRetry = async (apiKey, requestBody) => {
   }
 };
 
-// Request shape per provider. The desktop app adds the key in the main process; the browser build sends it here.
-const JSON_ENDPOINTS = {
-  claude: {
-    url: 'https://api.anthropic.com/v1/messages',
-    headers: (key) => ({
-      'x-api-key': key,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    }),
-    body: (model, prompt) => ({ model, max_tokens: 4096, messages: [{ role: 'user', content: prompt }] }),
-    read: (json) => (json.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('')
-  },
-  deepseek: {
-    url: 'https://api.deepseek.com/chat/completions',
-    headers: (key) => ({ Authorization: `Bearer ${key}` }),
-    body: (model, prompt) => ({ model, messages: [{ role: 'user', content: prompt }], response_format: { type: 'json_object' } }),
-    read: (json) => json.choices?.[0]?.message?.content
-  },
-  chatgpt: {
-    url: 'https://api.openai.com/v1/chat/completions',
-    headers: (key) => ({ Authorization: `Bearer ${key}` }),
-    body: (model, prompt) => ({ model, messages: [{ role: 'user', content: prompt }], response_format: { type: 'json_object' } }),
-    read: (json) => json.choices?.[0]?.message?.content
-  }
-};
-
-// Pulls a JSON object out of a model reply, even when it is wrapped in code fences or prose.
-const parseJsonLoose = (raw) => {
-  let text = String(raw || '').trim();
-  text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-  try {
-    return JSON.parse(text);
-  } catch {
-    const first = text.indexOf('{');
-    const last = text.lastIndexOf('}');
-    if (first !== -1 && last > first) return JSON.parse(text.slice(first, last + 1));
-    throw new Error('The AI reply was not valid JSON');
-  }
-};
-
-const callJsonProvider = async (providerId, key, model, prompt, signal) => {
-  const cfg = JSON_ENDPOINTS[providerId];
-  const res = await providerFetch(cfg.url, {
+const callJsonProvider = async (provider, key, prompt, signal) => {
+  const { url, headers, body } = buildJsonRequest(provider, { key, model: provider.model, prompt });
+  const res = await providerFetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...cfg.headers(key) },
-    body: JSON.stringify(cfg.body(model, prompt)),
+    headers,
+    body: JSON.stringify(body),
     signal
   });
 
@@ -158,8 +119,8 @@ const callJsonProvider = async (providerId, key, model, prompt, signal) => {
   }
 
   const json = await res.json();
-  const content = cfg.read(json);
-  if (!content) throw new Error(`Empty content from ${getProvider(providerId).label.en}`);
+  const content = readJsonResponse(provider, json);
+  if (!content) throw new Error(`Empty content from ${provider.label.en}`);
   return normalizeAiResponse(parseJsonLoose(content));
 };
 
@@ -229,7 +190,7 @@ export const executeTextGeneration = async (prompt, geminiRequestBody, ui) => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), AI_REQUEST_TIMEOUT_MS);
     try {
-      const data = await callJsonProvider(providerId, key, provider.model, fullPrompt, controller.signal);
+      const data = await callJsonProvider(provider, key, fullPrompt, controller.signal);
       return { data, provider: providerId };
     } finally {
       clearTimeout(timer);
