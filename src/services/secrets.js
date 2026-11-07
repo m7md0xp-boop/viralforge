@@ -2,7 +2,7 @@
 // Desktop app: keys are encrypted by the OS (Electron safeStorage) in the main process and are NEVER
 // sent to the renderer. The renderer only learns whether a key is saved.
 // Browser build: keys stay in localStorage. That is NOT secure: any script on the page can read them.
-export const SECRET_KEYS = ['gemini_api_key', 'openai_api_key', 'groq_api_key', 'openrouter_api_key'];
+export const SECRET_KEYS = ['gemini_api_key', 'claude_api_key', 'deepseek_api_key', 'openai_api_key'];
 
 // Placeholder returned in desktop mode. It means "a key is saved", and it is never sent to any API.
 const SAVED_MARKER = '__saved_in_desktop__';

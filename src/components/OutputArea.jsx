@@ -2,7 +2,7 @@ import { translations } from '../i18n/translations';
 import { checkText } from '../utils/titleCheck';
 import { Download, Sparkles, MessageSquare, Check, TrendingUp, RefreshCw, Copy, Smartphone, FileText } from 'lucide-react';
 
-export default function OutputArea({ limits, hasGenerated, lang, handleExportAll, genThumbnails, imagePrompt, setImagePrompt, handleCopyAndOpenGemini, handleCopyAndOpenChatGPT, genTitles, videoTitles, handleRegenerateTitles, isRegeneratingTitles, copyToClipboard, copiedSection, genShorts, shortsTitles, handleRegenerateShorts, isRegeneratingShorts, genDescription, description, handleRegenerateDescription, isRegeneratingDescription }) {
+export default function OutputArea({ section = 'video', limits, hasGenerated, lang, handleExportAll, genThumbnails, imagePrompt, setImagePrompt, handleCopyAndOpenGemini, handleCopyAndOpenChatGPT, genTitles, videoTitles, handleRegenerateTitles, isRegeneratingTitles, copyToClipboard, copiedSection, genShorts, shortsTitles, handleRegenerateShorts, isRegeneratingShorts, genDescription, description, handleRegenerateDescription, isRegeneratingDescription }) {
   return (
         !hasGenerated ? (
           <div className="bg-[#151922] border border-dashed border-gray-800 rounded-xl p-8 min-h-[180px] flex items-center justify-center text-center">
@@ -25,7 +25,7 @@ export default function OutputArea({ limits, hasGenerated, lang, handleExportAll
             </div>
 
             {/* 1. Thumbnail Image Prompt Section (Editable) */}
-            {(genThumbnails || Boolean(imagePrompt)) && (
+            {section === 'video' && (genThumbnails || Boolean(imagePrompt)) && (
               <div className="bg-[#151922] border border-gray-800 rounded-xl p-4 sm:p-6 shadow-xl space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
@@ -78,7 +78,7 @@ export default function OutputArea({ limits, hasGenerated, lang, handleExportAll
             </div>
 
             {/* 2. YouTube Titles Section */}
-            {genTitles && videoTitles.length > 0 && (
+            {section === 'video' && genTitles && videoTitles.length > 0 && (
             <div className="bg-[#151922] border border-gray-800 rounded-xl p-4 sm:p-6 shadow-xl space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
@@ -176,13 +176,13 @@ export default function OutputArea({ limits, hasGenerated, lang, handleExportAll
             )}
 
             {/* 2. YouTube Shorts Titles Section */}
-            {genShorts && shortsTitles.length > 0 && (
+            {section === 'live' && shortsTitles.length > 0 && (
             <div className="bg-[#151922] border border-gray-800 rounded-xl p-4 sm:p-6 shadow-xl space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <Smartphone className="w-5 h-5 text-purple-400 shrink-0" />
                   <h3 className="text-base font-semibold text-gray-200">
-                    {translations[lang]['shortsHeader']}
+                    {lang === 'ar' ? 'قوالب البث المباشر' : 'Live stream templates'}
                   </h3>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
@@ -256,7 +256,7 @@ export default function OutputArea({ limits, hasGenerated, lang, handleExportAll
             )}
 
             {/* 3. Description Section */}
-            {genDescription && Boolean(description) && (
+            {section !== 'live' && Boolean(description) && (
             <div className="bg-[#151922] border border-gray-800 rounded-xl p-4 sm:p-6 shadow-xl space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
