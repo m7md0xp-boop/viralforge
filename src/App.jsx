@@ -15,7 +15,8 @@ import { loadContentPlan, buildPlanRules, strictestLimits } from './config/platf
 import OutputArea from './components/OutputArea';
 import { setSecret, hasDesktopSecrets, revealSecret } from './services/secrets';
 import { getActiveProviderId, setActiveProviderId } from './services/ai';
-import { getProvider } from './config/aiProviders';
+import { getActiveImageProviderId, setActiveImageProviderId } from './services/imageGeneration';
+import { getProvider, getImageProvider, findAnyProvider } from './config/aiProviders';
 import { getCurrentProfile, openProfilePicker } from './services/profiles';
 import Dashboard from './components/Dashboard';
 import { useGeneration } from './hooks/useGeneration';
@@ -123,6 +124,11 @@ export default function App() {
   const [providerInput, setProviderInput] = useState(() => getActiveProviderId());
   const [keyInput, setKeyInput] = useState('');
   const [showKey, setShowKey] = useState(false);
+  const [imageProviderInput, setImageProviderInput] = useState(() => getActiveImageProviderId());
+  const [imageKeyInput, setImageKeyInput] = useState('');
+  const [showImageKey, setShowImageKey] = useState(false);
+  const [generatedImage, setGeneratedImage] = useState(null); // { src, mime } | null
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
 
   // Loading state for Gemini API
   const [isLoading, setIsLoading] = useState(false);
@@ -305,8 +311,11 @@ export default function App() {
   };
 
   const handleClearSingleKey = (providerId) => {
-    setSecret(getProvider(providerId).keyName, '');
-    if (providerId === providerInput) setKeyInput('');
+    const keyName = findAnyProvider(providerId).keyName;
+    setSecret(keyName, '');
+    // A shared key (Gemini) is cleared in both fields
+    if (getProvider(providerInput).keyName === keyName) setKeyInput('');
+    if (getImageProvider(imageProviderInput).keyName === keyName) setImageKeyInput('');
     showToast(translations[lang]['keyClearedSuccess'], 'success');
   };
 
@@ -395,11 +404,21 @@ export default function App() {
     setShowKey(false);
   };
 
+  const changeImageProviderInput = async (id) => {
+    setImageProviderInput(id);
+    setImageKeyInput(await revealSecret(getImageProvider(id).keyName));
+    setShowImageKey(false);
+  };
+
   const openSettings = async () => {
     const id = getActiveProviderId();
+    const imageId = getActiveImageProviderId();
     setProviderInput(id);
     setKeyInput(await revealSecret(getProvider(id).keyName));
     setShowKey(false);
+    setImageProviderInput(imageId);
+    setImageKeyInput(await revealSecret(getImageProvider(imageId).keyName));
+    setShowImageKey(false);
     setIsSettingsOpen(true);
   };
 
@@ -407,10 +426,17 @@ export default function App() {
 
   const handleSaveApiKey = () => {
     const provider = getProvider(providerInput);
+    const imageProvider = getImageProvider(imageProviderInput);
     const value = keyInput.trim();
     // Desktop: an empty field keeps the saved key (use Clear to remove it). Browser: empty clears it.
     if (value || !hasDesktopSecrets()) setSecret(provider.keyName, value);
+    // Gemini text and Gemini image share one key: save it once, from the text field
+    if (imageProvider.keyName !== provider.keyName) {
+      const imageValue = imageKeyInput.trim();
+      if (imageValue || !hasDesktopSecrets()) setSecret(imageProvider.keyName, imageValue);
+    }
     setActiveProviderId(providerInput);
+    setActiveImageProviderId(imageProviderInput);
     showToast(t('toastApiKeySaved'), 'success');
     setIsSettingsOpen(false);
   };
@@ -519,7 +545,8 @@ export default function App() {
     handleExportAll,
     copyToClipboard,
     handleCopyAndOpenGemini,
-    handleCopyAndOpenChatGPT
+    handleCopyAndOpenChatGPT,
+    handleGenerateImage
   } = useGeneration({
     section: contentType,
     selectedPlatforms,
@@ -551,8 +578,14 @@ export default function App() {
     setIsRegeneratingDescription,
     shortsTitles,
     imagePrompt,
-    setCopiedSection
+    setCopiedSection,
+    uploadedImageBase64,
+    setGeneratedImage,
+    setIsGeneratingImage
   });
+
+  const activeImageProvider = getImageProvider(getActiveImageProviderId());
+  const referencePhotoAttached = Boolean(uploadedImageBase64);
 
   const hasGenerated = videoTitles.length > 0 || shortsTitles.length > 0 || Boolean(description) || Boolean(imagePrompt);
 
@@ -567,7 +600,7 @@ export default function App() {
       <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col gap-6 pb-16 sm:pb-20">
         {view === 'dashboard' && <Dashboard lang={lang} />}
         {view !== 'dashboard' && <InputCard showToast={showToast} setActiveTab={setActiveTab} activeTab={activeTab} lang={lang} gameName={gameName} setGameName={setGameName} episode={episode} setEpisode={setEpisode} chatPrompt={chatPrompt} setChatPrompt={setChatPrompt} isRecording={isRecording} handleToggleVoiceInput={handleToggleVoiceInput} contentType={contentType} setContentType={setContentType} selectedPlatforms={selectedPlatforms} setSelectedPlatforms={setSelectedPlatforms} handleGenerate={handleGenerate} isLoading={isLoading} saveStatus={saveStatus} isEditing={isEditing} handleSaveClick={handleSaveClick} handleToggleEdit={handleToggleEdit} handleSelectPresetTemplate={handleSelectPresetTemplate} channelName={channelName} handleChannelNameChange={handleChannelNameChange} channelLink={channelLink} handleChannelLinkChange={handleChannelLinkChange} template={template} setTemplate={setTemplate} fileInputRef={fileInputRef} handleFileChange={handleFileChange} handleDragOver={handleDragOver} handleDragEnter={handleDragEnter} handleDragLeave={handleDragLeave} handleDrop={handleDrop} uploadedImage={uploadedImage} isDragging={isDragging} imageDetails={imageDetails} handleRemoveImage={handleRemoveImage} imageError={imageError} handleResetGenerationOptions={handleResetGenerationOptions} genTitles={genTitles} setGenTitles={setGenTitles} genShorts={genShorts} setGenShorts={setGenShorts} genDescription={genDescription} setGenDescription={setGenDescription} genThumbnails={genThumbnails} setGenThumbnails={setGenThumbnails} useCustomTemplate={useCustomTemplate} setUseCustomTemplate={setUseCustomTemplate} />}
-        {view !== 'dashboard' && <OutputArea section={contentType} limits={limits} hasGenerated={hasGenerated} lang={lang} handleExportAll={handleExportAll} genThumbnails={genThumbnails} imagePrompt={imagePrompt} setImagePrompt={setImagePrompt} handleCopyAndOpenGemini={handleCopyAndOpenGemini} handleCopyAndOpenChatGPT={handleCopyAndOpenChatGPT} genTitles={genTitles} videoTitles={videoTitles} handleRegenerateTitles={handleRegenerateTitles} isRegeneratingTitles={isRegeneratingTitles} copyToClipboard={copyToClipboard} copiedSection={copiedSection} genShorts={genShorts} shortsTitles={shortsTitles} handleRegenerateShorts={handleRegenerateShorts} isRegeneratingShorts={isRegeneratingShorts} genDescription={genDescription} description={description} handleRegenerateDescription={handleRegenerateDescription} isRegeneratingDescription={isRegeneratingDescription} />}
+        {view !== 'dashboard' && <OutputArea section={contentType} limits={limits} hasGenerated={hasGenerated} lang={lang} handleExportAll={handleExportAll} genThumbnails={genThumbnails} imagePrompt={imagePrompt} setImagePrompt={setImagePrompt} handleCopyAndOpenGemini={handleCopyAndOpenGemini} handleCopyAndOpenChatGPT={handleCopyAndOpenChatGPT} generatedImage={generatedImage} isGeneratingImage={isGeneratingImage} handleGenerateImage={handleGenerateImage} imageProvider={activeImageProvider} referencePhotoAttached={referencePhotoAttached} genTitles={genTitles} videoTitles={videoTitles} handleRegenerateTitles={handleRegenerateTitles} isRegeneratingTitles={isRegeneratingTitles} copyToClipboard={copyToClipboard} copiedSection={copiedSection} genShorts={genShorts} shortsTitles={shortsTitles} handleRegenerateShorts={handleRegenerateShorts} isRegeneratingShorts={isRegeneratingShorts} genDescription={genDescription} description={description} handleRegenerateDescription={handleRegenerateDescription} isRegeneratingDescription={isRegeneratingDescription} />}
       </main>
 
       {/* Phase 37: Sticky Owner Signature / Copyright Watermark Footer */}
@@ -615,7 +648,7 @@ export default function App() {
         </div>
       )}
 
-      <SettingsModal isSettingsOpen={isSettingsOpen} handleBackdropClick={handleBackdropClick} lang={lang} setIsSettingsOpen={setIsSettingsOpen} providerInput={providerInput} setProviderInput={changeProviderInput} keyInput={keyInput} setKeyInput={setKeyInput} showKey={showKey} setShowKey={setShowKey} showToast={showToast} handleClearSingleKey={handleClearSingleKey} handleSaveApiKey={handleSaveApiKey} />
+      <SettingsModal isSettingsOpen={isSettingsOpen} handleBackdropClick={handleBackdropClick} lang={lang} setIsSettingsOpen={setIsSettingsOpen} text={{ providerId: providerInput, onProvider: changeProviderInput, keyValue: keyInput, onKey: setKeyInput, show: showKey, onShow: setShowKey }} image={{ providerId: imageProviderInput, onProvider: changeImageProviderInput, keyValue: imageKeyInput, onKey: setImageKeyInput, show: showImageKey, onShow: setShowImageKey }} showToast={showToast} handleClearSingleKey={handleClearSingleKey} handleSaveApiKey={handleSaveApiKey} />
     </div>
   );
 }

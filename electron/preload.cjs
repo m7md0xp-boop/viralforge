@@ -8,8 +8,8 @@ contextBridge.exposeInMainWorld('desktop', {
     reveal: (name) => ipcRenderer.invoke('secrets:reveal', name)
   },
   ai: {
-    request: ({ provider, path, body, requestId }) =>
-      ipcRenderer.invoke('ai:request', { provider, path, body, requestId }),
+    request: ({ provider, path, body, requestId, responseType }) =>
+      ipcRenderer.invoke('ai:request', { provider, path, body, requestId, responseType }),
     cancel: (requestId) => ipcRenderer.invoke('ai:cancel', requestId)
   },
   clipboard: {

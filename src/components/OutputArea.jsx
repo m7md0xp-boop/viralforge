@@ -1,8 +1,30 @@
 import { translations } from '../i18n/translations';
 import { checkText } from '../utils/titleCheck';
-import { Download, Sparkles, MessageSquare, Check, TrendingUp, RefreshCw, Copy, Smartphone, FileText } from 'lucide-react';
+import { Download, Sparkles, Check, TrendingUp, RefreshCw, Copy, Smartphone, FileText, Image as ImageIcon } from 'lucide-react';
+import { UsageBadge } from './UsageBadge';
 
-export default function OutputArea({ section = 'video', limits, hasGenerated, lang, handleExportAll, genThumbnails, imagePrompt, setImagePrompt, handleCopyAndOpenGemini, handleCopyAndOpenChatGPT, genTitles, videoTitles, handleRegenerateTitles, isRegeneratingTitles, copyToClipboard, copiedSection, genShorts, shortsTitles, handleRegenerateShorts, isRegeneratingShorts, genDescription, description, handleRegenerateDescription, isRegeneratingDescription }) {
+// Strings for the thumbnail image card (kept here so the main translation file stays unchanged)
+const IMAGE_UI = {
+  ar: {
+    providerLabel: 'مزوّد الصور:',
+    generate: 'توليد الصورة',
+    generating: 'جارٍ التوليد…',
+    download: 'تحميل الصورة',
+    previewAlt: 'الصورة المولّدة',
+    refWarning: 'هذا المزوّد لا يستخدم صورتك المرجعية، لذلك لن يظهر وجهك في الصورة.'
+  },
+  en: {
+    providerLabel: 'Image provider:',
+    generate: 'Generate image',
+    generating: 'Generating…',
+    download: 'Download image',
+    previewAlt: 'Generated image',
+    refWarning: 'This provider does not use your reference photo, so your face will not appear.'
+  }
+};
+
+export default function OutputArea({ section = 'video', limits, hasGenerated, lang, handleExportAll, genThumbnails, imagePrompt, setImagePrompt, handleCopyAndOpenGemini, handleCopyAndOpenChatGPT, generatedImage, isGeneratingImage, handleGenerateImage, imageProvider, referencePhotoAttached = false, genTitles, videoTitles, handleRegenerateTitles, isRegeneratingTitles, copyToClipboard, copiedSection, genShorts, shortsTitles, handleRegenerateShorts, isRegeneratingShorts, genDescription, description, handleRegenerateDescription, isRegeneratingDescription }) {
+  const ui = IMAGE_UI[lang === 'ar' ? 'ar' : 'en'];
   return (
         !hasGenerated ? (
           <div className="bg-[#151922] border border-dashed border-gray-800 rounded-xl p-8 min-h-[180px] flex items-center justify-center text-center">
@@ -24,7 +46,7 @@ export default function OutputArea({ section = 'video', limits, hasGenerated, la
               </button>
             </div>
 
-            {/* 1. Thumbnail Image Prompt Section (Editable) */}
+            {/* 1. Thumbnail: prompt (editable), generate with the selected image provider, preview */}
             {section === 'video' && (genThumbnails || Boolean(imagePrompt)) && (
               <div className="bg-[#151922] border border-gray-800 rounded-xl p-4 sm:p-6 shadow-xl space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -34,27 +56,45 @@ export default function OutputArea({ section = 'video', limits, hasGenerated, la
                       {translations[lang]['imagePromptTitle']}
                     </h3>
                   </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] text-gray-500">{ui.providerLabel}</span>
+                    <UsageBadge provider={imageProvider} lang={lang} />
+                  </div>
                 </div>
 
-                <div className="relative">
-                  <textarea
-                    rows={4}
-                    value={imagePrompt}
-                    onChange={(e) => setImagePrompt(e.target.value)}
-                    placeholder={translations[lang]['imagePromptPlaceholder']}
-                    className="w-full bg-[#0d0f14] border border-gray-700/80 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 rounded-xl p-3.5 text-xs sm:text-sm text-gray-200 placeholder-gray-500 transition-all outline-none resize-y font-sans leading-relaxed"
-                  />
-                </div>
+                <textarea
+                  rows={4}
+                  value={imagePrompt}
+                  onChange={(e) => setImagePrompt(e.target.value)}
+                  placeholder={translations[lang]['imagePromptPlaceholder']}
+                  className="w-full bg-[#0d0f14] border border-gray-700/80 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 rounded-xl p-3.5 text-xs sm:text-sm text-gray-200 placeholder-gray-500 transition-all outline-none resize-y font-sans leading-relaxed"
+                />
 
-                {/* Two buttons below the textarea */}
+                {referencePhotoAttached && !imageProvider.supportsReference && (
+                  <p className="text-[11px] text-amber-300/90 bg-amber-950/30 border border-amber-500/20 rounded-lg p-2">
+                    {ui.refWarning}
+                  </p>
+                )}
+
                 <div className="flex flex-wrap items-center gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleGenerateImage}
+                    disabled={isGeneratingImage}
+                    className={`min-h-[44px] flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 text-xs sm:text-sm font-semibold rounded-lg text-white bg-gradient-to-r from-fuchsia-600 to-purple-600 border border-purple-500/50 shadow-md transition-all ${
+                      isGeneratingImage ? 'opacity-70 cursor-not-allowed' : 'hover:from-fuchsia-500 hover:to-purple-500 hover:shadow-[0_0_15px_rgba(168,85,247,0.4)] active:scale-[0.98] cursor-pointer'
+                    }`}
+                  >
+                    <ImageIcon className={`w-4 h-4 ${isGeneratingImage ? 'animate-pulse' : ''}`} />
+                    <span>{isGeneratingImage ? ui.generating : ui.generate}</span>
+                  </button>
+
                   {/* "نسخ وفتح Gemini" (Copy & Open Gemini) */}
                   <button
                     type="button"
                     onClick={handleCopyAndOpenGemini}
-                    className="min-h-[44px] flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 text-xs sm:text-sm font-semibold rounded-lg bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white border border-indigo-500/50 shadow-md hover:shadow-[0_0_15px_rgba(99,102,241,0.4)] active:scale-[0.98] transition-all cursor-pointer"
+                    className="min-h-[44px] flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 text-xs sm:text-sm font-semibold rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 transition-all cursor-pointer"
                   >
-                    <Sparkles className="w-4 h-4 text-blue-200" />
                     <span>{translations[lang]['copyAndOpenGeminiBtn']}</span>
                   </button>
 
@@ -62,12 +102,27 @@ export default function OutputArea({ section = 'video', limits, hasGenerated, la
                   <button
                     type="button"
                     onClick={handleCopyAndOpenChatGPT}
-                    className="min-h-[44px] flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 text-xs sm:text-sm font-semibold rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-teal-500/50 shadow-md hover:shadow-[0_0_15px_rgba(20,184,166,0.4)] active:scale-[0.98] transition-all cursor-pointer"
+                    className="min-h-[44px] flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 text-xs sm:text-sm font-semibold rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 transition-all cursor-pointer"
                   >
-                    <MessageSquare className="w-4 h-4 text-emerald-200" />
                     <span>{translations[lang]['copyAndOpenChatGptBtn']}</span>
                   </button>
                 </div>
+
+                {generatedImage && (
+                  <div className="space-y-3">
+                    <div className="rounded-xl overflow-hidden border border-gray-800 bg-[#0d0f14]">
+                      <img src={generatedImage.src} alt={ui.previewAlt} className="w-full h-auto block" />
+                    </div>
+                    <a
+                      href={generatedImage.src}
+                      download={`thumbnail.${generatedImage.mime.split('/')[1] || 'png'}`}
+                      className="min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-200 hover:text-emerald-400 transition-all"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>{ui.download}</span>
+                    </a>
+                  </div>
+                )}
               </div>
             )}
 
