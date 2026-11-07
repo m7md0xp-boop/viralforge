@@ -1,9 +1,12 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-// Minimal, explicit API for the renderer. Keys never leave the main process unencrypted on disk.
+// Minimal API for the renderer. API keys are never exposed here.
 contextBridge.exposeInMainWorld('desktop', {
   secrets: {
-    getAll: () => ipcRenderer.invoke('secrets:getAll'),
+    status: () => ipcRenderer.invoke('secrets:status'),
     set: (name, value) => ipcRenderer.invoke('secrets:set', name, value)
+  },
+  ai: {
+    request: ({ provider, path, body }) => ipcRenderer.invoke('ai:request', { provider, path, body })
   }
 });

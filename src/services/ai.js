@@ -1,4 +1,5 @@
 import { getSecret } from './secrets';
+import { providerFetch } from './aiTransport';
 import { safeGetLocalStorage } from '../utils/storage';
 
 // Gemini API caller with up to 3 attempts and 20s global timeout via AbortController
@@ -22,7 +23,7 @@ export const callGeminiWithRetry = async (apiKey, requestBody) => {
           throw new DOMException('Aborted', 'AbortError');
         }
 
-        const res = await fetch(endpoint, {
+        const res = await providerFetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
           body: JSON.stringify(requestBody),
@@ -143,7 +144,7 @@ const callGroq = async (groqApiKey, prompt) => {
     ? prompt
     : `${prompt}\nPlease output the response in JSON format.`;
 
-  const res = await fetch(endpoint, {
+  const res = await providerFetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -205,7 +206,7 @@ const callOpenAI = async (openaiApiKey, prompt) => {
   const endpoint = 'https://api.openai.com/v1/chat/completions';
   const jsonInstructionPrompt = `${prompt}\nEnsure the output is a valid JSON object with keys: "videoTitles", "shortsTitles", "description" (or the specific requested fields).`;
 
-  const res = await fetch(endpoint, {
+  const res = await providerFetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

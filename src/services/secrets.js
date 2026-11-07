@@ -1,13 +1,18 @@
-// API keys. In the desktop app they are encrypted by the OS (Electron safeStorage) in the main process.
-// In the browser build they fall back to localStorage, which is NOT secure: any script on the page can read it.
+// API keys.
+// Desktop app: keys are encrypted by the OS (Electron safeStorage) in the main process and are NEVER
+// sent to the renderer. The renderer only learns whether a key is saved.
+// Browser build: keys stay in localStorage. That is NOT secure: any script on the page can read them.
 export const SECRET_KEYS = ['gemini_api_key', 'openai_api_key', 'groq_api_key', 'openrouter_api_key'];
 
+// Placeholder returned in desktop mode. It means "a key is saved", and it is never sent to any API.
+const SAVED_MARKER = '__saved_in_desktop__';
+
 const cache = {};
-const desktop = () => (typeof window !== 'undefined' && window.desktop && window.desktop.secrets) || null;
+const bridge = () => (typeof window !== 'undefined' && window.desktop && window.desktop.secrets) || null;
 
 const readBrowserKey = (name) => {
   try {
-    return localStorage.getItem(name) || '';
+    return (localStorage.getItem(name) || '').trim();
   } catch {
     return '';
   }
@@ -20,26 +25,28 @@ const removeBrowserKey = (name) => {
 
 // Must be awaited once at startup (see main.jsx) before the UI reads keys.
 export async function initSecrets() {
-  const bridge = desktop();
-  if (bridge) {
-    const stored = await bridge.getAll();
-    Object.assign(cache, stored);
-    // Migrate keys saved by the old browser build into encrypted storage, then delete them from localStorage
+  const api = bridge();
+  if (api) {
+    const status = await api.status();
     for (const name of SECRET_KEYS) {
-      const legacy = readBrowserKey(name).trim();
+      cache[name] = status && status[name] ? SAVED_MARKER : '';
+      // Migrate keys saved by the old browser build into encrypted storage
+      const legacy = readBrowserKey(name);
       if (legacy) {
-        if (!cache[name]) {
-          cache[name] = legacy;
-          await bridge.set(name, legacy);
+        if (!status || !status[name]) {
+          await api.set(name, legacy);
         }
+        cache[name] = SAVED_MARKER;
         removeBrowserKey(name);
       }
     }
   } else {
-    for (const name of SECRET_KEYS) cache[name] = readBrowserKey(name).trim();
+    for (const name of SECRET_KEYS) cache[name] = readBrowserKey(name);
   }
   return cache;
 }
+
+export const hasDesktopSecrets = () => Boolean(bridge());
 
 export function getSecret(name) {
   return (cache[name] || '').trim();
@@ -47,12 +54,13 @@ export function getSecret(name) {
 
 export function setSecret(name, value) {
   const v = (value || '').trim();
-  cache[name] = v;
-  const bridge = desktop();
-  if (bridge) {
-    bridge.set(name, v).catch((err) => console.warn('Failed to save key', err));
+  const api = bridge();
+  if (api) {
+    cache[name] = v ? SAVED_MARKER : '';
+    api.set(name, v).catch((err) => console.warn('Failed to save key', err));
     return;
   }
+  cache[name] = v;
   try {
     if (v) localStorage.setItem(name, v);
     else localStorage.removeItem(name);
@@ -60,5 +68,3 @@ export function setSecret(name, value) {
     console.warn('Failed to save key in browser storage', err);
   }
 }
-
-export const hasDesktopSecrets = () => Boolean(desktop());
