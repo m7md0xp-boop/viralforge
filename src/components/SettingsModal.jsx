@@ -1,6 +1,14 @@
 import { Key, X, Trash2, ExternalLink, EyeOff, Eye, AlertCircle } from 'lucide-react';
 import { translations } from '../i18n/translations';
-import { AI_PROVIDERS, getProvider } from '../config/aiProviders';
+import { AI_PROVIDERS, getProvider, getUsage } from '../config/aiProviders';
+
+// Full class names so Tailwind includes them
+const BADGE = {
+  emerald: 'bg-emerald-950/60 text-emerald-300 border-emerald-500/40',
+  sky: 'bg-sky-950/60 text-sky-300 border-sky-500/40',
+  amber: 'bg-amber-950/60 text-amber-300 border-amber-500/40',
+  rose: 'bg-rose-950/60 text-rose-300 border-rose-500/40'
+};
 import PasteButton from './PasteButton';
 
 // One provider dropdown and one key field for the chosen provider. Other providers' fields stay hidden.
@@ -71,10 +79,16 @@ export default function SettingsModal({
           >
             {AI_PROVIDERS.map((p) => (
               <option key={p.id} value={p.id}>
-                {label(p)}
+                {label(p)} {getUsage(p).label[isAr ? 'ar' : 'en']}
               </option>
             ))}
           </select>
+          <div className="flex items-start gap-2 flex-wrap">
+            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${BADGE[getUsage(provider).color]}`}>
+              {label(provider)} {getUsage(provider).label[isAr ? 'ar' : 'en']}
+            </span>
+            <span className="text-[11px] text-gray-400 leading-relaxed">{provider.usageNote[isAr ? 'ar' : 'en']}</span>
+          </div>
         </div>
 
         <div className="space-y-2">
