@@ -1,8 +1,9 @@
-import { Sun, Moon, Settings } from 'lucide-react';
+import { Sun, Moon, Settings, LayoutDashboard, PenSquare, Users } from 'lucide-react';
 import { translations } from '../i18n/translations';
 import { USER_CONFIG } from '../config/userConfig';
 
-export default function Header({ lang, theme, toggleTheme, setLang, openSettings }) {
+export default function Header({ lang, theme, toggleTheme, setLang, openSettings, view = 'create', setView, profileName, onSwitchUser }) {
+  const isAr = lang === 'ar';
   return (
       <header className="border-b border-gray-800 bg-[#151922]/80 backdrop-blur px-4 sm:px-6 py-3.5 sm:py-4 flex items-center justify-between shadow-md">
         <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 ltr:pr-2 rtl:pl-2">
@@ -21,6 +22,38 @@ export default function Header({ lang, theme, toggleTheme, setLang, openSettings
           </a>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {setView && (
+            <div className="hidden sm:flex items-center p-1 rounded-xl bg-white/[0.04] border border-white/10 mx-1">
+              {[
+                { id: 'create', icon: PenSquare, label: isAr ? 'إنشاء' : 'Create' },
+                { id: 'dashboard', icon: LayoutDashboard, label: isAr ? 'المتابعة' : 'Dashboard' }
+              ].map(({ id, icon: Icon, label }) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setView(id)}
+                  aria-pressed={view === id}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 ${
+                    view === id ? 'bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white shadow-[0_0_16px_-4px_rgba(168,85,247,0.7)]' : 'text-gray-400 hover:text-gray-100'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          {profileName && onSwitchUser && (
+            <button
+              type="button"
+              onClick={onSwitchUser}
+              title={isAr ? 'تبديل المستخدم' : 'Switch user'}
+              className="min-h-[44px] px-3 rounded-lg bg-white/[0.04] border border-white/10 text-gray-200 hover:border-purple-400/50 transition-all duration-200 flex items-center gap-2 text-xs font-medium max-w-[160px]"
+            >
+              <Users className="w-4 h-4 text-purple-300 shrink-0" />
+              <span className="truncate">{profileName}</span>
+            </button>
+          )}
           {/* Phase 28: Dark / Light Mode Toggle Button */}
           <button
             type="button"

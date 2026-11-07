@@ -21,7 +21,7 @@
 
   html.light body,
   body.light {
-    background-color: #f8fafc !important;
+    background-color: #f4f5fb !important;
     background-image: 
       radial-gradient(circle at 15% 15%, rgba(168, 85, 247, 0.05) 0%, transparent 40%),
       radial-gradient(circle at 85% 25%, rgba(16, 185, 129, 0.05) 0%, transparent 40%) !important;
@@ -156,4 +156,31 @@ html.light .bg-red-950\/50,
 html.light .bg-red-950\/60 {
   background-color: #fef2f2 !important;
   border-color: #fecaca !important;
+}
+
+/* ---- Premium polish: native controls, focus rings, calmer selection ---- */
+:root {
+  color-scheme: dark;
+}
+html.light {
+  color-scheme: light;
+}
+body {
+  -webkit-font-smoothing: antialiased;
+}
+*:focus-visible {
+  outline: 2px solid rgba(168, 85, 247, 0.7);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+::selection {
+  background: rgba(168, 85, 247, 0.3);
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

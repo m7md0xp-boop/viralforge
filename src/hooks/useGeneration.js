@@ -1,3 +1,4 @@
+import { recordGeneration } from '../utils/history';
 import { translations } from '../i18n/translations';
 import { STORAGE_KEY, DEFAULT_TEMPLATE } from '../config/templates';
 import { YOUTUBE_TITLE_VARIANTS, SHORTS_TITLE_VARIANTS, DESCRIPTION_HOOKS } from '../config/titleVariants';
@@ -7,7 +8,7 @@ import { executeTextGeneration, getSpecificApiErrorMessage } from '../services/a
 
 // Generation, regeneration, export and copy logic. The App passes its state and setters in `ctx`.
 export function useGeneration(ctx) {
-  const { gameName, episode, template, applyChannelPlaceholders, activeTab, chatPrompt, videoTitles, showToast, genTitles, genShorts, genDescription, genThumbnails, setVideoTitles, setShortsTitles, setDescription, setImagePrompt, t, setIsLoading, lang, useCustomTemplate, planRules, uiHooks, setIsRegeneratingTitles, description, setIsRegeneratingShorts, setIsRegeneratingDescription, shortsTitles, imagePrompt, setCopiedSection } = ctx;
+  const { contentType, selectedPlatforms, gameName, episode, template, applyChannelPlaceholders, activeTab, chatPrompt, videoTitles, showToast, genTitles, genShorts, genDescription, genThumbnails, setVideoTitles, setShortsTitles, setDescription, setImagePrompt, t, setIsLoading, lang, useCustomTemplate, planRules, uiHooks, setIsRegeneratingTitles, description, setIsRegeneratingShorts, setIsRegeneratingDescription, shortsTitles, imagePrompt, setCopiedSection } = ctx;
 
 const getCleanInputs = () => {
   const game = gameName.trim() || 'My Game';
@@ -351,6 +352,15 @@ Do not include any image description text in the JSON. Return only the JSON. ${l
     setImagePrompt(promptText);
 
     showToast(t('toastMetadataSuccess'), 'success');
+    recordGeneration({
+      contentType,
+      platforms: selectedPlatforms,
+      gameName: game,
+      episode: ep,
+      hasTitles: genTitles,
+      hasShorts: genShorts,
+      hasDescription: genDescription && typeof parsedData.description === 'string'
+    });
   } catch (err) {
     handleGenerationError(err);
   } finally {

@@ -13,7 +13,9 @@ import SettingsModal from './components/SettingsModal';
 import InputCard from './components/InputCard';
 import { loadContentPlan, buildPlanRules, strictestLimits } from './config/platforms';
 import OutputArea from './components/OutputArea';
-import { getSecret, setSecret, hasDesktopSecrets } from './services/secrets';
+import { setSecret, hasDesktopSecrets, revealSecret } from './services/secrets';
+import { getCurrentProfile, openProfilePicker } from './services/profiles';
+import Dashboard from './components/Dashboard';
 import { useGeneration } from './hooks/useGeneration';
 
 export default function App() {
@@ -419,23 +421,30 @@ export default function App() {
     showToast(translations[lang]['optionsResetToast'], 'info');
   };
 
-  const openSettings = () => {
-    const savedKey = getSecret('gemini_api_key');
-    const savedOpenaiKey = getSecret('openai_api_key');
-    const savedGroqKey = getSecret('groq_api_key');
-    const savedOpenRouterKey = getSecret('openrouter_api_key');
+  const [view, setView] = useState('create');
+  const [profile, setProfile] = useState(null);
+  useEffect(() => {
+    getCurrentProfile().then(setProfile);
+  }, []);
+
+  const openSettings = async () => {
+    // Saved keys are read from this profile's store when Settings opens, so they stay visible in the fields
+    const [savedKey, savedOpenaiKey, savedGroqKey, savedOpenRouterKey] = await Promise.all([
+      revealSecret('gemini_api_key'),
+      revealSecret('openai_api_key'),
+      revealSecret('groq_api_key'),
+      revealSecret('openrouter_api_key')
+    ]);
     const savedTextProvider = safeGetLocalStorage('text_provider', 'gemini');
     const savedImageProvider = safeGetLocalStorage('image_provider', 'pollinations');
     const savedGeminiModel = safeGetLocalStorage('selected_gemini_model', 'gemini-3.8-flash');
     const savedGroqModel = safeGetLocalStorage('selected_groq_model', 'openai/gpt-oss-120b');
     const savedOpenRouterModel = safeGetLocalStorage('selected_openrouter_model', 'openrouter/free');
 
-    // In desktop mode the saved keys are never loaded into the UI; empty fields mean "keep current key"
-    const desktop = hasDesktopSecrets();
-    setApiKeyInput(desktop ? '' : savedKey);
-    setOpenaiApiKeyInput(desktop ? '' : savedOpenaiKey);
-    setGroqApiKeyInput(desktop ? '' : savedGroqKey);
-    setOpenRouterApiKeyInput(desktop ? '' : savedOpenRouterKey);
+    setApiKeyInput(savedKey);
+    setOpenaiApiKeyInput(savedOpenaiKey);
+    setGroqApiKeyInput(savedGroqKey);
+    setOpenRouterApiKeyInput(savedOpenRouterKey);
     setTextProviderInput(savedTextProvider);
     setImageProviderInput(savedImageProvider);
     setGeminiModelInput(savedGeminiModel);
@@ -611,6 +620,8 @@ export default function App() {
     handleCopyAndOpenGemini,
     handleCopyAndOpenChatGPT
   } = useGeneration({
+    contentType,
+    selectedPlatforms,
     gameName,
     episode,
     template,
@@ -653,12 +664,13 @@ export default function App() {
       dir={lang === 'ar' ? 'rtl' : 'ltr'}
       className={`${lang === 'ar' ? 'font-arabic' : 'font-english'} min-h-screen bg-[#0d0f14] dark:bg-[#0d0f14] text-gray-100 dark:text-gray-100 flex flex-col relative w-full overflow-x-hidden transition-colors duration-200`}
     >
-      <Header lang={lang} theme={theme} toggleTheme={toggleTheme} setLang={setLang} openSettings={openSettings} />
+      <Header lang={lang} theme={theme} toggleTheme={toggleTheme} setLang={setLang} openSettings={openSettings} view={view} setView={setView} profileName={profile?.name} onSwitchUser={openProfilePicker} />
 
       {/* Main Content */}
       <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col gap-6 pb-16 sm:pb-20">
-        <InputCard setActiveTab={setActiveTab} activeTab={activeTab} lang={lang} gameName={gameName} setGameName={setGameName} episode={episode} setEpisode={setEpisode} chatPrompt={chatPrompt} setChatPrompt={setChatPrompt} isRecording={isRecording} handleToggleVoiceInput={handleToggleVoiceInput} contentType={contentType} setContentType={setContentType} selectedPlatforms={selectedPlatforms} setSelectedPlatforms={setSelectedPlatforms} handleGenerate={handleGenerate} isLoading={isLoading} saveStatus={saveStatus} isEditing={isEditing} handleSaveClick={handleSaveClick} handleToggleEdit={handleToggleEdit} handleSelectPresetTemplate={handleSelectPresetTemplate} channelName={channelName} handleChannelNameChange={handleChannelNameChange} channelLink={channelLink} handleChannelLinkChange={handleChannelLinkChange} template={template} setTemplate={setTemplate} fileInputRef={fileInputRef} handleFileChange={handleFileChange} handleDragOver={handleDragOver} handleDragEnter={handleDragEnter} handleDragLeave={handleDragLeave} handleDrop={handleDrop} uploadedImage={uploadedImage} isDragging={isDragging} imageDetails={imageDetails} handleRemoveImage={handleRemoveImage} imageError={imageError} handleResetGenerationOptions={handleResetGenerationOptions} genTitles={genTitles} setGenTitles={setGenTitles} genShorts={genShorts} setGenShorts={setGenShorts} genDescription={genDescription} setGenDescription={setGenDescription} genThumbnails={genThumbnails} setGenThumbnails={setGenThumbnails} useCustomTemplate={useCustomTemplate} setUseCustomTemplate={setUseCustomTemplate} />
-        <OutputArea limits={limits} hasGenerated={hasGenerated} lang={lang} handleExportAll={handleExportAll} genThumbnails={genThumbnails} imagePrompt={imagePrompt} setImagePrompt={setImagePrompt} handleCopyAndOpenGemini={handleCopyAndOpenGemini} handleCopyAndOpenChatGPT={handleCopyAndOpenChatGPT} genTitles={genTitles} videoTitles={videoTitles} handleRegenerateTitles={handleRegenerateTitles} isRegeneratingTitles={isRegeneratingTitles} copyToClipboard={copyToClipboard} copiedSection={copiedSection} genShorts={genShorts} shortsTitles={shortsTitles} handleRegenerateShorts={handleRegenerateShorts} isRegeneratingShorts={isRegeneratingShorts} genDescription={genDescription} description={description} handleRegenerateDescription={handleRegenerateDescription} isRegeneratingDescription={isRegeneratingDescription} />
+        {view === 'dashboard' && <Dashboard lang={lang} />}
+        {view !== 'dashboard' && <InputCard setActiveTab={setActiveTab} activeTab={activeTab} lang={lang} gameName={gameName} setGameName={setGameName} episode={episode} setEpisode={setEpisode} chatPrompt={chatPrompt} setChatPrompt={setChatPrompt} isRecording={isRecording} handleToggleVoiceInput={handleToggleVoiceInput} contentType={contentType} setContentType={setContentType} selectedPlatforms={selectedPlatforms} setSelectedPlatforms={setSelectedPlatforms} handleGenerate={handleGenerate} isLoading={isLoading} saveStatus={saveStatus} isEditing={isEditing} handleSaveClick={handleSaveClick} handleToggleEdit={handleToggleEdit} handleSelectPresetTemplate={handleSelectPresetTemplate} channelName={channelName} handleChannelNameChange={handleChannelNameChange} channelLink={channelLink} handleChannelLinkChange={handleChannelLinkChange} template={template} setTemplate={setTemplate} fileInputRef={fileInputRef} handleFileChange={handleFileChange} handleDragOver={handleDragOver} handleDragEnter={handleDragEnter} handleDragLeave={handleDragLeave} handleDrop={handleDrop} uploadedImage={uploadedImage} isDragging={isDragging} imageDetails={imageDetails} handleRemoveImage={handleRemoveImage} imageError={imageError} handleResetGenerationOptions={handleResetGenerationOptions} genTitles={genTitles} setGenTitles={setGenTitles} genShorts={genShorts} setGenShorts={setGenShorts} genDescription={genDescription} setGenDescription={setGenDescription} genThumbnails={genThumbnails} setGenThumbnails={setGenThumbnails} useCustomTemplate={useCustomTemplate} setUseCustomTemplate={setUseCustomTemplate} />}
+        {view !== 'dashboard' && <OutputArea limits={limits} hasGenerated={hasGenerated} lang={lang} handleExportAll={handleExportAll} genThumbnails={genThumbnails} imagePrompt={imagePrompt} setImagePrompt={setImagePrompt} handleCopyAndOpenGemini={handleCopyAndOpenGemini} handleCopyAndOpenChatGPT={handleCopyAndOpenChatGPT} genTitles={genTitles} videoTitles={videoTitles} handleRegenerateTitles={handleRegenerateTitles} isRegeneratingTitles={isRegeneratingTitles} copyToClipboard={copyToClipboard} copiedSection={copiedSection} genShorts={genShorts} shortsTitles={shortsTitles} handleRegenerateShorts={handleRegenerateShorts} isRegeneratingShorts={isRegeneratingShorts} genDescription={genDescription} description={description} handleRegenerateDescription={handleRegenerateDescription} isRegeneratingDescription={isRegeneratingDescription} />}
       </main>
 
       {/* Phase 37: Sticky Owner Signature / Copyright Watermark Footer */}

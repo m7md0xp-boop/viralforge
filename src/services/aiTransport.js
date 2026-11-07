@@ -8,8 +8,13 @@ const HOST_TO_PROVIDER = {
   'openrouter.ai': 'openrouter'
 };
 
+const abortError = () => new DOMException('Aborted', 'AbortError');
+const newRequestId = () =>
+  (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+
 // Drop-in replacement for fetch() for the AI providers.
 // Desktop: the request goes to the main process, which adds the real API key and calls the API.
+//          If the caller aborts, the renderer rejects at once and the main process request is cancelled.
 // Browser: a normal fetch() with the key the caller passed in the headers.
 export async function providerFetch(url, init = {}) {
   const parsed = new URL(url);
@@ -17,16 +22,36 @@ export async function providerFetch(url, init = {}) {
   const bridge = typeof window !== 'undefined' && window.desktop && window.desktop.ai;
 
   if (provider && bridge && hasDesktopSecrets()) {
-    if (init.signal && init.signal.aborted) throw new DOMException('Aborted', 'AbortError');
-    const result = await bridge.request({
+    const signal = init.signal;
+    if (signal && signal.aborted) throw abortError();
+
+    const requestId = newRequestId();
+    const call = bridge.request({
       provider,
       path: parsed.pathname + parsed.search,
-      body: typeof init.body === 'string' ? init.body : ''
+      body: typeof init.body === 'string' ? init.body : '',
+      requestId
     });
-    return new Response(result.body, {
-      status: result.status,
-      headers: { 'Content-Type': 'application/json' }
+
+    if (!signal) {
+      const result = await call;
+      return new Response(result.body, { status: result.status, headers: { 'Content-Type': 'application/json' } });
+    }
+
+    let onAbort;
+    const aborted = new Promise((_, reject) => {
+      onAbort = () => {
+        if (bridge.cancel) bridge.cancel(requestId).catch(() => {});
+        reject(abortError());
+      };
+      signal.addEventListener('abort', onAbort, { once: true });
     });
+    try {
+      const result = await Promise.race([call, aborted]);
+      return new Response(result.body, { status: result.status, headers: { 'Content-Type': 'application/json' } });
+    } finally {
+      signal.removeEventListener('abort', onAbort);
+    }
   }
   return fetch(url, init);
 }

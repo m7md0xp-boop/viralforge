@@ -52,6 +52,21 @@ export function getSecret(name) {
   return (cache[name] || '').trim();
 }
 
+// Returns the saved key so the Settings fields can show it. Desktop: fetched from this profile's
+// encrypted store on demand, and never kept in the cache. Browser: read from localStorage.
+export async function revealSecret(name) {
+  const api = bridge();
+  if (api) {
+    try {
+      return ((await api.reveal(name)) || '').trim();
+    } catch (err) {
+      console.warn('Failed to read saved key', err);
+      return '';
+    }
+  }
+  return readBrowserKey(name);
+}
+
 export function setSecret(name, value) {
   const v = (value || '').trim();
   const api = bridge();
