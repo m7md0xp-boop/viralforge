@@ -1,11 +1,14 @@
+import { useState } from 'react';
 import { translations } from '../i18n/translations';
 import { PRESET_TEMPLATES } from '../config/templates';
 import { USER_CONFIG } from '../config/userConfig';
 import ContentPlanner from './ContentPlanner';
 import ToggleSwitch from './ToggleSwitch';
-import { Zap, MessageSquare, Mic, Info, Loader2, FileText, Check, Save, Edit3, ImageIcon, Trash2, UploadCloud, AlertCircle, SlidersHorizontal, X } from 'lucide-react';
+import { Eye, Zap, MessageSquare, Mic, Info, Loader2, FileText, Check, Save, Edit3, ImageIcon, Trash2, UploadCloud, AlertCircle, SlidersHorizontal, X } from 'lucide-react';
 
 export default function InputCard({ setActiveTab, activeTab, lang, gameName, setGameName, episode, setEpisode, chatPrompt, setChatPrompt, isRecording, handleToggleVoiceInput, contentType, setContentType, selectedPlatforms, setSelectedPlatforms, handleGenerate, isLoading, saveStatus, isEditing, handleSaveClick, handleToggleEdit, handleSelectPresetTemplate, channelName, handleChannelNameChange, channelLink, handleChannelLinkChange, template, setTemplate, fileInputRef, handleFileChange, handleDragOver, handleDragEnter, handleDragLeave, handleDrop, uploadedImage, isDragging, imageDetails, handleRemoveImage, imageError, handleResetGenerationOptions, genTitles, setGenTitles, genShorts, setGenShorts, genDescription, setGenDescription, genThumbnails, setGenThumbnails, useCustomTemplate, setUseCustomTemplate }) {
+  const [previewPresetId, setPreviewPresetId] = useState('');
+  const previewPreset = PRESET_TEMPLATES.find((p) => p.id === previewPresetId) || null;
   return (
     <>
       {/* Input Card with Tabbed Interface */}
@@ -186,8 +189,8 @@ export default function InputCard({ setActiveTab, activeTab, lang, gameName, set
             </label>
             <select
               id="preset-templates-select"
-              onChange={handleSelectPresetTemplate}
-              defaultValue=""
+              onChange={(e) => setPreviewPresetId(e.target.value)}
+              value={previewPresetId}
               className="w-full sm:w-auto min-h-[38px] px-3 py-1.5 rounded-lg bg-[#0d0f14] border border-gray-700 text-xs text-purple-300 font-medium focus:outline-none focus:border-purple-500 cursor-pointer"
             >
               <option value="" disabled>{translations[lang]['selectPresetPlaceholder']}</option>
@@ -199,6 +202,28 @@ export default function InputCard({ setActiveTab, activeTab, lang, gameName, set
             </select>
           </div>
         </div>
+
+        {/* Template preview: read the text first, then apply it explicitly */}
+        {previewPreset && (
+          <div className="rounded-xl border border-purple-500/20 bg-purple-500/[0.06] p-3 space-y-2.5">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-purple-200">
+                <Eye className="w-3.5 h-3.5" />
+                {previewPreset.name[lang] || previewPreset.name['ar']}
+              </span>
+              <button
+                type="button"
+                onClick={() => handleSelectPresetTemplate({ target: { value: previewPreset.id } })}
+                className="min-h-[34px] px-3 rounded-lg bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white text-xs font-semibold hover:brightness-110 transition"
+              >
+                {lang === 'ar' ? 'استخدام القالب' : 'Use template'}
+              </button>
+            </div>
+            <pre className="whitespace-pre-wrap break-words max-h-36 overflow-y-auto text-[11px] leading-relaxed text-gray-400 font-sans">
+              {previewPreset.text.slice(0, 700)}{previewPreset.text.length > 700 ? '…' : ''}
+            </pre>
+          </div>
+        )}
 
         {/* Channel Name and URL Inputs */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
