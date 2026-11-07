@@ -52,13 +52,6 @@ const buildCloudflare = (provider, { prompt }) => ({
   responseType: 'json'
 });
 
-// Hugging Face inference router, FLUX.1 schnell. Returns raw image bytes.
-const buildHuggingFace = (provider, { prompt }) => ({
-  path: provider.path,
-  body: { inputs: prompt, parameters: { width: LANDSCAPE.width, height: LANDSCAPE.height } },
-  responseType: 'binary'
-});
-
 // Google Gemini image model. Accepts a reference photo as inline data.
 const buildGeminiImage = (provider, { prompt, reference }) => {
   const parts = [{ text: prompt }];
@@ -82,7 +75,6 @@ const buildOpenAiImage = (provider, { prompt }) => ({
 
 const BUILDERS = {
   'cloudflare-image': buildCloudflare,
-  'huggingface-image': buildHuggingFace,
   'gemini-image': buildGeminiImage,
   'openai-image': buildOpenAiImage
 };
@@ -109,15 +101,6 @@ export const parseImageResponse = (provider, response) => {
     err.status = response.status;
     throw err;
   };
-
-  if (provider.format === 'huggingface-image') {
-    if (!response.ok || !response.base64) {
-      fail(errorText(response) || `Status ${response.status}`);
-    }
-    const mime = (response.contentType || '').startsWith('image/') ? response.contentType : sniffMime(response.base64);
-    if (!mime) fail(errorText(response) || 'Hugging Face did not return an image');
-    return { mime, base64: response.base64 };
-  }
 
   const json = response.json;
   if (!response.ok) fail(jsonError(json) || `Status ${response.status}`);

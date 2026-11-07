@@ -1,6 +1,6 @@
 {
-  "policyCheckedAt": "2026-10",
-  "note": "Free-tier terms change often. Re-check each provider's pricing page before publishing these labels. Image model names and endpoints were not verified against live APIs.",
+  "policyCheckedAt": "2026-11",
+  "note": "Model IDs were checked against each provider's deprecation or docs pages (Nov 2026). Free-tier limits change often: re-check the pricing page before publishing the usage labels.",
   "usageTypes": {
     "free": {
       "label": {
@@ -66,7 +66,7 @@
       "host": "api.groq.com",
       "base": "https://api.groq.com",
       "path": "/openai/v1/chat/completions",
-      "model": "llama-3.3-70b-versatile",
+      "model": "openai/gpt-oss-120b",
       "auth": {
         "header": "Authorization",
         "prefix": "Bearer "
@@ -138,7 +138,7 @@
       "host": "api.cerebras.ai",
       "base": "https://api.cerebras.ai",
       "path": "/v1/chat/completions",
-      "model": "llama-3.3-70b",
+      "model": "gpt-oss-120b",
       "auth": {
         "header": "Authorization",
         "prefix": "Bearer "
@@ -186,7 +186,7 @@
       "host": "api.deepseek.com",
       "base": "https://api.deepseek.com",
       "path": "/chat/completions",
-      "model": "deepseek-chat",
+      "model": "deepseek-flash",
       "auth": {
         "header": "Authorization",
         "prefix": "Bearer "
@@ -265,7 +265,7 @@
       "host": "api.cloudflare.com",
       "base": "https://api.cloudflare.com",
       "path": "/client/v4/accounts/{accountId}/ai/run/@cf/black-forest-labs/flux-1-schnell",
-      "model": "flux-1-schnell",
+      "model": "@cf/black-forest-labs/flux-1-schnell",
       "auth": {
         "header": "Authorization",
         "prefix": "Bearer "
@@ -276,31 +276,6 @@
       "usageNote": {
         "ar": "10,000 وحدة مجانية يومياً (نحو 170 صورة)، وتتجدد كل يوم. تحتاج معرّف الحساب والتوكن.",
         "en": "10,000 free units per day (about 170 images), reset daily. Needs your account ID and an API token."
-      },
-      "supportsReference": false
-    },
-    {
-      "id": "huggingface-image",
-      "label": {
-        "ar": "Hugging Face (FLUX.1)",
-        "en": "Hugging Face (FLUX.1)"
-      },
-      "format": "huggingface-image",
-      "keyName": "huggingface_api_key",
-      "host": "router.huggingface.co",
-      "base": "https://router.huggingface.co",
-      "path": "/hf-inference/models/black-forest-labs/FLUX.1-schnell",
-      "model": "black-forest-labs/FLUX.1-schnell",
-      "auth": {
-        "header": "Authorization",
-        "prefix": "Bearer "
-      },
-      "placeholder": "hf_...",
-      "keyUrl": "https://huggingface.co/settings/tokens",
-      "usage": "free-limit",
-      "usageNote": {
-        "ar": "رصيد شهري مجاني صغير (نحو 0.10 دولار) يكفي لعدد محدود من الصور.",
-        "en": "A small monthly free credit (about $0.10), enough for a limited number of images."
       },
       "supportsReference": false
     },
