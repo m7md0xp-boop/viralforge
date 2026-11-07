@@ -2,6 +2,9 @@ import { translations } from '../i18n/translations';
 import { buildSectionPrompt, buildSchema, buildThumbnailPrompt } from '../config/prompts';
 import { executeTextGeneration, getSpecificApiErrorMessage, getActiveProviderId } from '../services/ai';
 import { recordGeneration } from '../utils/history';
+import { executeImageGeneration, getImageErrorMessage, getActiveImageProviderId } from '../services/imageGeneration';
+import { parseDataUrl } from '../services/imageRequests';
+import { getImageProvider } from '../config/aiProviders';
 
 // Adds the hashtags block at the end of the text: "<text>\n\nHashtags:\n#a #b"
 const composeWithHashtags = (text, hashtags, lang) => {
@@ -46,7 +49,10 @@ export function useGeneration(ctx) {
     uiHooks,
     setIsRegeneratingTitles,
     setIsRegeneratingShorts,
-    setIsRegeneratingDescription
+    setIsRegeneratingDescription,
+    uploadedImageBase64,
+    setGeneratedImage,
+    setIsGeneratingImage
   } = ctx;
 
   const currentSection = () => (activeTab === 'chat' ? 'video' : section);
@@ -113,6 +119,7 @@ export function useGeneration(ctx) {
     }
 
     const { game, ep } = gameInfo();
+    setGeneratedImage(null);
     setIsLoading(true);
     try {
       const data = await requestSection({ wantTitles, wantDescription });
@@ -284,8 +291,39 @@ export function useGeneration(ctx) {
     window.open('https://chatgpt.com/', '_blank', 'noopener,noreferrer');
   };
 
+  // Generates a thumbnail image with the active image provider (Settings > Image provider)
+  const handleGenerateImage = async () => {
+    const provider = getImageProvider(getActiveImageProviderId());
+    const reference = parseDataUrl(uploadedImageBase64);
+    if (reference && !provider.supportsReference) {
+      showToast(
+        lang === 'ar'
+          ? `${provider.label.ar} لا يدعم صورتك المرجعية، سيتم التوليد بدونها.`
+          : `${provider.label.en} does not support your reference photo. Generating without it.`,
+        'info'
+      );
+    }
+
+    setIsGeneratingImage(true);
+    try {
+      const result = await executeImageGeneration({
+        prompt: thumbnailText(),
+        reference: provider.supportsReference ? reference : null,
+        ui: uiHooks
+      });
+      if (!result) return;
+      setGeneratedImage({ src: `data:${result.mime};base64,${result.base64}`, mime: result.mime, provider: result.provider });
+      showToast(lang === 'ar' ? 'تم توليد الصورة.' : 'Image generated.', 'success');
+    } catch (err) {
+      showToast(getImageErrorMessage(err.error, err.provider), 'error');
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
+
   return {
     handleGenerationError,
+    handleGenerateImage,
     handleGenerate,
     handleRegenerateTitles,
     handleRegenerateShorts,
