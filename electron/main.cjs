@@ -5,7 +5,8 @@ const { pathToFileURL } = require('url');
 const crypto = require('crypto');
 
 const DIST_DIR = path.join(__dirname, '..', 'dist');
-const SECRET_NAMES = ['gemini_api_key', 'claude_api_key', 'deepseek_api_key', 'openai_api_key'];
+const catalog = require('../shared/aiProviders.json');
+const SECRET_NAMES = catalog.providers.map((p) => p.keyName);
 // Longer than the renderer's 90 s budget, so the renderer always decides when a request has timed out
 const AI_TIMEOUT_MS = 100000;
 const DEFAULT_PROFILE_ID = 'default';
@@ -76,17 +77,21 @@ function findProfileWindow(profileId) {
 
 // ----- Encrypted API keys (OS keychain via safeStorage) -----
 // Keys never leave this process except when the user opens Settings (secrets:reveal).
-// Keep the provider ids in sync with src/config/aiProviders.js and src/services/aiTransport.js
-const PROVIDERS = {
-  gemini: { base: 'https://generativelanguage.googleapis.com', keyName: 'gemini_api_key', auth: (k) => ({ 'x-goog-api-key': k }) },
-  claude: {
-    base: 'https://api.anthropic.com',
-    keyName: 'claude_api_key',
-    auth: (k) => ({ 'x-api-key': k, 'anthropic-version': '2023-06-01' })
-  },
-  deepseek: { base: 'https://api.deepseek.com', keyName: 'deepseek_api_key', auth: (k) => ({ Authorization: `Bearer ${k}` }) },
-  chatgpt: { base: 'https://api.openai.com', keyName: 'openai_api_key', auth: (k) => ({ Authorization: `Bearer ${k}` }) }
-};
+// Provider table built from shared/aiProviders.json (the same file the renderer uses).
+// The renderer sends the provider id, a path and the body. This process adds the saved key.
+const PROVIDERS = Object.fromEntries(
+  catalog.providers.map((p) => [
+    p.id,
+    {
+      base: p.base,
+      keyName: p.keyName,
+      auth: (key) => ({
+        ...(p.auth && p.auth.header ? { [p.auth.header]: `${p.auth.prefix || ''}${key}` } : {}),
+        ...(p.headers || {})
+      })
+    }
+  ])
+);
 
 function readSecrets(profileId) {
   try {

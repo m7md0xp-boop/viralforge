@@ -1,13 +1,9 @@
 import { hasDesktopSecrets } from './secrets';
 
-// Maps the API host to the provider id used by the desktop main process.
-// Provider ids match src/config/aiProviders.js and electron/main.cjs.
-const HOST_TO_PROVIDER = {
-  'generativelanguage.googleapis.com': 'gemini',
-  'api.anthropic.com': 'claude',
-  'api.deepseek.com': 'deepseek',
-  'api.openai.com': 'chatgpt'
-};
+import { AI_PROVIDERS } from '../config/aiProviders';
+
+// Maps the API host to the provider id used by the desktop main process (both come from shared/aiProviders.json).
+const HOST_TO_PROVIDER = Object.fromEntries(AI_PROVIDERS.map((p) => [p.host, p.id]));
 
 const abortError = () => new DOMException('Aborted', 'AbortError');
 const newRequestId = () =>
