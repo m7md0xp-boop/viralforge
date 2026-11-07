@@ -1,7 +1,8 @@
 import { translations } from '../i18n/translations';
+import { checkText } from '../utils/titleCheck';
 import { Download, Sparkles, MessageSquare, Check, TrendingUp, RefreshCw, Copy, Smartphone, FileText } from 'lucide-react';
 
-export default function OutputArea({ hasGenerated, lang, handleExportAll, genThumbnails, imagePrompt, setImagePrompt, handleCopyAndOpenGemini, handleCopyAndOpenChatGPT, genTitles, videoTitles, handleRegenerateTitles, isRegeneratingTitles, copyToClipboard, copiedSection, genShorts, shortsTitles, handleRegenerateShorts, isRegeneratingShorts, genDescription, description, handleRegenerateDescription, isRegeneratingDescription }) {
+export default function OutputArea({ limits, hasGenerated, lang, handleExportAll, genThumbnails, imagePrompt, setImagePrompt, handleCopyAndOpenGemini, handleCopyAndOpenChatGPT, genTitles, videoTitles, handleRegenerateTitles, isRegeneratingTitles, copyToClipboard, copiedSection, genShorts, shortsTitles, handleRegenerateShorts, isRegeneratingShorts, genDescription, description, handleRegenerateDescription, isRegeneratingDescription }) {
   return (
         !hasGenerated ? (
           <div className="bg-[#151922] border border-dashed border-gray-800 rounded-xl p-8 min-h-[180px] flex items-center justify-center text-center">
@@ -135,13 +136,26 @@ export default function OutputArea({ hasGenerated, lang, handleExportAll, genThu
                     key={index}
                     className="p-3.5 rounded-lg bg-[#0d0f14] border border-gray-800/80 hover:border-purple-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all"
                   >
-                    <span className="text-sm font-medium text-gray-200 flex-1 break-words">
-                      {item.title}
-                    </span>
+                    <div className="flex-1 min-w-0 space-y-1.5">
+                      <span className="text-sm font-medium text-gray-200 break-words">
+                        {item.title}
+                      </span>
+                      <TitleMeta text={item.title} limits={limits} />
+                    </div>
                     <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto shrink-0 pt-2 sm:pt-0 border-t border-gray-800/60 sm:border-0">
                       <span className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-emerald-950/60 text-emerald-400 border border-emerald-500/30">
                         {translations[lang]['viralScore']}: {item.score}%
                       </span>
+                      {item.seo !== undefined && (
+                        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-purple-950/60 text-purple-300 border border-purple-500/30">
+                          SEO {item.seo}%
+                        </span>
+                      )}
+                      {item.ctr !== undefined && (
+                        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-amber-950/40 text-amber-300 border border-amber-500/30">
+                          CTR {item.ctr}%
+                        </span>
+                      )}
                       <button
                         type="button"
                         aria-label={`${translations[lang]['copyBtn']} ${index + 1}`}
@@ -298,5 +312,28 @@ export default function OutputArea({ hasGenerated, lang, handleExportAll, genThu
             )}
           </div>
         )
+  );
+}
+
+// Character count and hashtag warnings for one title (uses the strictest selected platform limits)
+function TitleMeta({ text, limits }) {
+  const info = checkText(text, limits);
+  const messages = info.warnings.map((w) => {
+    if (w.kind === 'length') return `${w.length}/${w.max}`;
+    if (w.kind === 'hashtagsOver') return `# ${w.count}/${w.max}`;
+    return `# ${w.count} (max ${w.max})`;
+  });
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-[11px]">
+      <span className={info.warnings.some((w) => w.kind === 'length') ? 'text-red-400 font-semibold' : 'text-gray-500'}>
+        {info.length}/{limits.titleMax}
+      </span>
+      {info.tags > 0 && <span className="text-gray-500">#{info.tags}</span>}
+      {info.warnings.length > 0 && (
+        <span className="inline-flex items-center gap-1 text-amber-400">
+          ⚠ {messages.join(' · ')}
+        </span>
+      )}
+    </div>
   );
 }
