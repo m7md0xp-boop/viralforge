@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
-  Settings,
   Edit3,
   Save,
   FileText,
@@ -14,544 +13,26 @@ import {
   RefreshCw,
   Smartphone,
   X,
-  Key,
-  Eye,
-  EyeOff,
   Loader2,
   Download,
-  ExternalLink,
   SlidersHorizontal,
   Info,
-  Plus,
   Zap,
   MessageSquare,
-  Sun,
-  Moon,
   Sparkles,
-  Clipboard,
   Mic
 } from 'lucide-react';
 
-const translations = {
-  ar: {
-    appTitle: 'ViralForge',
-    gameNameLabel: 'اسم اللعبة',
-    gameNamePlaceholder: 'مثال: إلدن رينغ، سايبربانك 2077',
-    episodeLabel: 'رقم الحلقة / الجزء',
-    episodePlaceholder: 'مثال: 01، الجزء 5',
-    generateBtn: 'توليد البيانات الوصفية',
-    generatingBtn: 'جارٍ توليد البيانات...',
-    templateTitle: 'قالب وصف الفيديو',
-    editTemplateBtn: 'تعديل القالب',
-    saveTemplateBtn: 'حفظ القالب',
-    readOnlyBadge: 'للقراءة فقط',
-    savedText: 'تم الحفظ',
-    placeholdersInfo: 'المتغيرات:',
-    templatePlaceholder: 'أدخل قالب وصف يوتيوب...',
-    imageUploadTitle: 'رفع صورة',
-    maxSizeText: '(الحد الأقصى 10 ميغابايت)',
-    dragDropText: 'اسحب وأفلت لقطة شاشة اللعب أو الصورة المصغرة هنا',
-    browseText: 'أو انقر للاستعراض من جهازك (JPG, PNG, WebP حتى 10 ميغابايت)',
-    removeImageBtn: 'إزالة الصورة',
-    outputPlaceholder: 'ستظهر النتائج هنا',
-    titlesHeader: 'عناوين يوتيوب',
-    shortsHeader: 'عناوين يوتيوب شورتس',
-    descHeader: 'الوصف',
-    thumbnailsHeader: 'صور مصغرة بالذكاء الاصطناعي',
-    regenerateBtn: 'إعادة توليد',
-    regeneratingBtn: 'جارٍ إعادة التوليد...',
-    regenerateThumbnailsBtn: 'إعادة توليد الصور',
-    copyBtn: 'نسخ',
-    copyTitlesBtn: 'نسخ العناوين',
-    copyShortsBtn: 'نسخ الشورتس',
-    copyDescBtn: 'نسخ الوصف',
-    copiedText: 'تم النسخ!',
-    viralScore: 'مقياس الانتشار',
-    conceptsBadge: '3 نماذج',
-    conceptNum: 'النموذج',
-    emptyPlaceholder: 'عنصر نائب فارغ',
-    generatingConcept: 'جارٍ توليد النموذج',
-    failedToLoadThumbnail: 'فشل التحميل — انقر لإعادة التوليد',
-    downloadBtn: 'تنزيل',
-    downloadingBtn: 'جارٍ التنزيل...',
-    settingsTitle: 'إعدادات Gemini و Groq API',
-    settingsSubtitle: 'تهيئة مفاتيح API الخاصة بك لتوليد النصوص والبدائل',
-    apiKeyLabel: 'مفتاح Gemini API',
-    apiKeyPlaceholder: 'أدخل مفتاح Gemini API هنا...',
-    groqApiKeyLabel: 'مفتاح Groq API (الاحتياطي)',
-    groqApiKeyPlaceholder: 'أدخل مفتاح Groq API هنا (احتياطي اختياري)...',
-    warningText: 'يتم تخزين كلا المفتاحين في هذا المتصفح فقط. لا تستخدمهما على أجهزة مشتركة.',
-    saveBtn: 'حفظ',
-    clearBtn: 'مسح',
-    cancelBtn: 'إلغاء',
-    toastKeyRequired: 'يرجى إدخال مفتاح Gemini API في الإعدادات أولاً.',
-    toastInvalidKey: 'مفتاح API غير صالح. تحقق من الإعدادات.',
-    toastRateLimit: 'تم تجاوز حد الطلبات. انتظر لحظة.',
-    toastTextGenFailed: 'فشل توليد النصوص:',
-    toastThumbGenFailed: 'فشل توليد الصور المصغرة. انقر لإعادة التوليد.',
-    toastMetadataSuccess: 'تم توليد البيانات الوصفية بنجاح!',
-    toastTitlesRegenerated: 'تمت إعادة توليد العناوين بنجاح!',
-    toastShortsRegenerated: 'تمت إعادة توليد عناوين الشورتس بنجاح!',
-    toastDescRegenerated: 'تمت إعادة توليد الوصف بنجاح!',
-    toastThumbnailsRegenerating: 'جارٍ إعادة توليد الصور المصغرة...',
-    toastDownloaded: 'تم التنزيل!',
-    toastDownloadFailed: 'فشل التنزيل',
-    toastApiKeySaved: 'تم حفظ مفاتيح API!',
-    toastApiKeyCleared: 'تم مسح مفاتيح API!',
-    toastCopied: 'تم النسخ!',
-    toastCopyFailed: 'فشل النسخ — يرجى تحديد النص يدوياً',
-    toastImageOnly: 'يتم قبول ملفات الصور فقط (image/*).',
-    toastImageSize: 'حجم الملف يتجاوز 10 ميغابايت. يرجى اختيار صورة أصغر.',
-    toastTimeout: 'انتهت مهلة الطلب. حاول مرة أخرى.',
-    toastAttemptsFailed: 'فشل توليد النصوص بعد 3 محاولات:',
-    toastFallbackToGroq: 'فشل Gemini. جارٍ استخدام Groq كبديل.',
-    toastBothFailed: 'فشل كل من Gemini و Groq. حاول مرة أخرى لاحقاً.',
-    toastGroqFallbackFailed: 'فشل بديل Groq:',
-    modelSelectionTitle: 'اختيار النماذج',
-    geminiModelLabel: 'نموذج Gemini',
-    groqModelLabel: 'نموذج Groq',
-    openrouterModelLabel: 'نموذج OpenRouter',
-    openrouterNote: 'إذا اخترت موديل مجاني، قد يكون أبطأ. الموديلات المدفوعة تحتاج رصيد في حسابك على OpenRouter.',
-    freeLabel: 'مجاني',
-    paidLabel: 'يتطلب الدفع',
-    getKeyBtn: 'احصل على مفتاح (مجاني)',
-    openrouterApiKeyLabel: 'مفتاح OpenRouter API',
-    openrouterApiKeyPlaceholder: 'أدخل مفتاح OpenRouter API هنا (اختياري)...',
-    quotaWarningNote1: "ملاحظة مهمة: كلمة 'مجاني' تعني أن الموديل مجاني ضمن حدود يومية. إذا وصلت للحد الأقصى، سيتوقف عن العمل مؤقتاً حتى يتم تجديد الحد. اختر دائماً الموديلات المجانية إذا كنت لا تريد الدفع.",
-    quotaWarningNote2: "إذا وصلت للحد الأقصى اليومي للمفتاح، يمكنك حذف المفتاح من هنا وتوليد مفتاح جديد من حساب آخر (أو نفس الحساب) وإضافته في الحقل المخصص لاستكمال العمل دون انتظار.",
-    exportAllBtn: 'تصدير الكل',
-    toastExportSuccess: 'تم التصدير بنجاح',
-    generationOptionsTitle: 'خيارات التوليد',
-    toggleTitles: 'توليد العناوين',
-    toggleShorts: 'توليد الشورتس',
-    toggleDescription: 'توليد الوصف',
-    toggleThumbnails: 'توليد الصور',
-    toggleCustomTemplate: 'استخدام القالب المخصص',
-    customTemplateNote: 'ملاحظة: عند التفعيل، سيتم بناء الوصف بناءً على القالب المكتوب بالأعلى. عند الإيقاف، سيكتب الذكاء الاصطناعي وصفاً حراً.',
-    noteTitles: 'يقوم بتوليد 3 عناوين جذابة بناءً على اسم اللعبة.',
-    noteShorts: 'يقوم بتوليد 3 عناوين قصيرة مع هاشتاقات فيديوهات الشورتس.',
-    noteDescription: 'يقوم بتوليد وصف كامل للفيديو (يعتمد على القالب إذا كان مفعلاً).',
-    noteThumbnails: 'يقوم بتوليد صورة مصغرة واحدة. يمكنك إضافة المزيد بعد ذلك للمقارنة.',
-    generateAnotherThumbnailBtn: 'توليد صورة أخرى',
-    compareThumbnailNote: 'اضغط لإضافة صورة جديدة للمقارنة.',
-    maxThumbnailsReached: 'لقد وصلت للحد الأقصى (3 صور)',
-    noImageNote: 'لم ترفع صورة. سيتم توليد الصورة من اسم اللعبة.',
-    failedToLoadThumbnailText: 'فشل تحميل الصورة - جرب مرة أخرى',
-    toastTextGenFailedLimits: 'Text generation failed. Check your API keys or daily limits.',
-    openaiApiKeyLabel: 'مفتاح OpenAI (ChatGPT) API',
-    openaiApiKeyPlaceholder: 'أدخل مفتاح OpenAI API هنا (sk-...)...',
-    textProviderLabel: 'مزود النصوص',
-    imageProviderLabel: 'مزود الصور',
-    providerSectionTitle: 'اختيار مزودي الخدمة',
-    providerNote1: 'ملاحظة: Gemini و ChatGPT يقدمان نصوصاً وصوراً. Groq يقدم نصوصاً فقط. Pollinations يقدم صوراً فقط.',
-    providerNote2: 'الحدود المجانية: Gemini (~20 صورة/يوم)، ChatGPT (2-3 صور/يوم)، Groq (نصوص فقط، مجاني وسريع).',
-    toastOpenAiKeyRequired: 'مفتاح OpenAI API مطلوب لاستخدام ChatGPT.',
-    toastGeminiKeyRequired: 'مفتاح Gemini API مطلوب.',
-    toastGroqKeyRequired: 'مفتاح Groq API مطلوب.',
-    geminiImageBillingNote: 'ملاحظة: موديل صور Gemini يحتاج تفعيل الفوترة (Billing) في حساب Google Cloud. إذا لم يكن مفعلاً، سيستخدم البرنامج Pollinations تلقائياً.',
-    toastGeminiImageQuotaFallback: 'Gemini image quota exceeded. Using Pollinations as fallback.',
-    quickModeTab: 'الوضع السريع',
-    chatStudioTab: 'استوديو المحادثة',
-    chatStudioPlaceholder: 'اكتب طلبك هنا... (مثال: أبي صورة مصغرة مع اسم اللعبة، وتعطيني 3 عناوين فيديو، و3 عناوين شورت، ووصف واحد بنفس الأسلوب...)',
-    chatStudioNote: 'ملاحظة: سيتم استخدام طلبك كما هو لتوليد النصوص والصور. إذا أردت استخدام اسم اللعبة ورقم الحلقة، استخدم الوضع السريع.',
-    outputSummaryText: 'تم توليد الصورة والعناوين والوصف بناءً على طلبك',
-    clearKeyBtn: 'حذف المفتاح',
-    keyClearedSuccess: 'تم حذف المفتاح بنجاح',
-    presetTemplatesLabel: 'قوالب جاهزة',
-    selectPresetPlaceholder: 'اختر قالباً جاهزاً...',
-    presetTemplateLoaded: 'تم تطبيق القالب بنجاح',
-    resetOptionsBtn: 'إعادة تعيين',
-    optionsResetToast: 'تم إعادة تعيين جميع الخيارات إلى الإيقاف',
-    toastImageToImageFallback: 'فشل استخدام الصورة المرفوعة، تم توليد صورة من النص.',
-    generateInGeminiBtn: 'توليد في Gemini',
-    generateInChatGPTBtn: 'توليد في ChatGPT',
-    toastGeminiCopiedPrompt: 'تم نسخ الطلب! ارفع صورتك في Gemini والصق الطلب.',
-    toastChatGptCopiedPrompt: 'تم نسخ الطلب! ارفع صورتك في ChatGPT والصق الطلب.',
-    imagePromptTitle: 'برومبت الصورة المصغرة (قابل للتعديل)',
-    imagePromptPlaceholder: 'سيظهر برومبت الصورة المصغرة هنا تلقائياً بعد توليد العناوين...',
-    copyAndOpenGeminiBtn: 'نسخ وفتح Gemini',
-    copyAndOpenChatGptBtn: 'نسخ وفتح ChatGPT',
-    toastGeminiPromptCopied: 'تم نسخ البرومبت! ارفع صورتك في Gemini والصقه.',
-    toastChatGptPromptCopied: 'تم نسخ البرومبت! ارفع صورتك في ChatGPT والصقه.',
-    pasteKeyBtn: 'لصق',
-    pastedToast: 'تم اللصق',
-    speechNotSupportedToast: 'المتصفح لا يدعم الإدخال الصوتي.',
-    channelNameLabel: 'اسم القناة',
-    channelUrlLabel: 'رابط القناة',
-    footerDevelopedBy: 'تم التطوير بواسطة'
-  },
-  en: {
-    appTitle: 'ViralForge',
-    gameNameLabel: 'Game Name',
-    gameNamePlaceholder: 'e.g. Elden Ring, Cyberpunk 2077',
-    episodeLabel: 'Episode/Part Number',
-    episodePlaceholder: 'e.g. 01, Part 5',
-    generateBtn: 'Generate Metadata',
-    generatingBtn: 'Generating Metadata...',
-    templateTitle: 'Description Template',
-    editTemplateBtn: 'Edit Template',
-    saveTemplateBtn: 'Save Template',
-    readOnlyBadge: 'Read Only',
-    savedText: 'Saved',
-    placeholdersInfo: 'Placeholders:',
-    templatePlaceholder: 'Enter YouTube description template...',
-    imageUploadTitle: 'Image Upload',
-    maxSizeText: '(Max 10MB)',
-    dragDropText: 'Drag & drop your gameplay screenshot or thumbnail here',
-    browseText: 'or click to browse from device (JPG, PNG, WebP up to 10MB)',
-    removeImageBtn: 'Remove image',
-    outputPlaceholder: 'Output will appear here',
-    titlesHeader: 'YouTube Titles',
-    shortsHeader: 'YouTube Shorts Titles',
-    descHeader: 'Description',
-    thumbnailsHeader: 'AI Thumbnails',
-    regenerateBtn: 'Regenerate',
-    regeneratingBtn: 'Regenerating...',
-    regenerateThumbnailsBtn: 'Regenerate Thumbnails',
-    copyBtn: 'Copy',
-    copyTitlesBtn: 'Copy Titles',
-    copyShortsBtn: 'Copy Shorts',
-    copyDescBtn: 'Copy Description',
-    copiedText: 'Copied!',
-    viralScore: 'Viral Score',
-    conceptsBadge: '3 Concepts',
-    conceptNum: 'Concept',
-    emptyPlaceholder: 'Empty placeholder',
-    generatingConcept: 'Generating concept',
-    failedToLoadThumbnail: 'Failed to load — click Regenerate',
-    downloadBtn: 'Download',
-    downloadingBtn: 'Downloading...',
-    settingsTitle: 'Gemini & Groq API Settings',
-    settingsSubtitle: 'Configure your API keys for text generation & fallback',
-    apiKeyLabel: 'Gemini API Key',
-    apiKeyPlaceholder: 'Enter your Gemini API key...',
-    groqApiKeyLabel: 'Groq API Key (Fallback)',
-    groqApiKeyPlaceholder: 'Enter your Groq API key (optional fallback)...',
-    warningText: 'Both keys are stored in this browser only. Do not use on shared computers.',
-    saveBtn: 'Save',
-    clearBtn: 'Clear',
-    cancelBtn: 'Cancel',
-    toastKeyRequired: 'Set your Gemini API key in Settings first.',
-    toastInvalidKey: 'Invalid API key. Check Settings.',
-    toastRateLimit: 'Rate limit hit. Wait a moment.',
-    toastTextGenFailed: 'Text generation failed:',
-    toastThumbGenFailed: 'Thumbnail generation failed. Click Regenerate.',
-    toastMetadataSuccess: 'Metadata generated successfully!',
-    toastTitlesRegenerated: 'Titles regenerated successfully!',
-    toastShortsRegenerated: 'Shorts titles regenerated successfully!',
-    toastDescRegenerated: 'Description regenerated successfully!',
-    toastThumbnailsRegenerating: 'Regenerating thumbnails...',
-    toastDownloaded: 'Downloaded!',
-    toastDownloadFailed: 'Download failed',
-    toastApiKeySaved: 'API Keys saved!',
-    toastApiKeyCleared: 'API Keys cleared!',
-    toastCopied: 'Copied!',
-    toastCopyFailed: 'Copy failed — select text manually',
-    toastImageOnly: 'Only image files (image/*) are accepted.',
-    toastImageSize: 'File exceeds 10MB limit. Please choose a smaller image.',
-    toastTimeout: 'Request timed out. Try again.',
-    toastAttemptsFailed: 'Text generation failed after 3 attempts:',
-    toastFallbackToGroq: 'Gemini failed. Using Groq as fallback.',
-    toastBothFailed: 'Both Gemini and Groq failed. Try again later.',
-    toastGroqFallbackFailed: 'Groq fallback failed:',
-    modelSelectionTitle: 'Model Selection',
-    geminiModelLabel: 'Gemini Model',
-    groqModelLabel: 'Groq Model',
-    openrouterModelLabel: 'OpenRouter Model',
-    openrouterNote: 'إذا اخترت موديل مجاني، قد يكون أبطأ. الموديلات المدفوعة تحتاج رصيد في حسابك على OpenRouter.',
-    freeLabel: 'مجاني',
-    paidLabel: 'يتطلب الدفع',
-    getKeyBtn: 'احصل على مفتاح (مجاني)',
-    openrouterApiKeyLabel: 'OpenRouter API Key',
-    openrouterApiKeyPlaceholder: 'Enter your OpenRouter API key (optional)...',
-    quotaWarningNote1: "ملاحظة مهمة: كلمة 'مجاني' تعني أن الموديل مجاني ضمن حدود يومية. إذا وصلت للحد الأقصى، سيتوقف عن العمل مؤقتاً حتى يتم تجديد الحد. اختر دائماً الموديلات المجانية إذا كنت لا تريد الدفع.",
-    quotaWarningNote2: "إذا وصلت للحد الأقصى اليومي للمفتاح، يمكنك حذف المفتاح من هنا وتوليد مفتاح جديد من حساب آخر (أو نفس الحساب) وإضافته في الحقل المخصص لاستكمال العمل دون انتظار.",
-    exportAllBtn: 'Export All',
-    toastExportSuccess: 'Export successful',
-    generationOptionsTitle: 'Generation Options',
-    toggleTitles: 'Generate Titles',
-    toggleShorts: 'Generate Shorts',
-    toggleDescription: 'Generate Description',
-    toggleThumbnails: 'Generate Thumbnails',
-    toggleCustomTemplate: 'Use Custom Template',
-    customTemplateNote: 'Note: When enabled, the description will be built based on the template above. When disabled, AI will write a free-form description.',
-    noteTitles: 'Generates 3 catchy video titles based on the game name.',
-    noteShorts: 'Generates 3 short titles with hashtags for YouTube Shorts.',
-    noteDescription: 'Generates a full video description (depends on template if enabled).',
-    noteThumbnails: 'Generates one thumbnail. You can add more later for comparison.',
-    generateAnotherThumbnailBtn: 'Generate Another Image',
-    compareThumbnailNote: 'Click to add a new image for comparison.',
-    maxThumbnailsReached: 'Maximum reached (3 images)',
-    noImageNote: 'No image uploaded. Thumbnail will be generated from game name.',
-    failedToLoadThumbnailText: 'Failed to load image - try again',
-    toastTextGenFailedLimits: 'Text generation failed. Check your API keys or daily limits.',
-    openaiApiKeyLabel: 'OpenAI (ChatGPT) API Key',
-    openaiApiKeyPlaceholder: 'Enter your OpenAI API key here (sk-...)...',
-    textProviderLabel: 'Text Provider',
-    imageProviderLabel: 'Image Provider',
-    providerSectionTitle: 'Provider Selection',
-    providerNote1: 'Note: Gemini and ChatGPT provide both text and images. Groq provides text only. Pollinations provides images only.',
-    providerNote2: 'Free Limits: Gemini (~20 images/day), ChatGPT (2-3 images/day), Groq (text only, free and fast).',
-    toastOpenAiKeyRequired: 'OpenAI API key is required for ChatGPT.',
-    toastGeminiKeyRequired: 'Gemini API key is required.',
-    toastGroqKeyRequired: 'Groq API key is required.',
-    geminiImageBillingNote: 'Note: Gemini image model requires billing enabled in Google Cloud. If not enabled, the app will automatically use Pollinations.',
-    toastGeminiImageQuotaFallback: 'Gemini image quota exceeded. Using Pollinations as fallback.',
-    quickModeTab: 'Quick Mode',
-    chatStudioTab: 'Chat Studio',
-    chatStudioPlaceholder: 'Write your request here... (e.g. I want a thumbnail with the game name, 3 video titles, 3 shorts titles, and 1 description in the same style...)',
-    chatStudioNote: 'Note: Your request will be used as-is to generate text and images. If you want to use Game Name and Episode number, use Quick Mode.',
-    outputSummaryText: 'Generated image, titles, and description based on your request',
-    clearKeyBtn: 'Clear Key',
-    keyClearedSuccess: 'API key cleared successfully',
-    presetTemplatesLabel: 'Pre-made Templates',
-    selectPresetPlaceholder: 'Choose a pre-made template...',
-    presetTemplateLoaded: 'Template applied successfully',
-    resetOptionsBtn: 'Reset',
-    optionsResetToast: 'All generation options reset to OFF',
-    toastImageToImageFallback: 'Failed to use uploaded image, generated from text.',
-    generateInGeminiBtn: 'Generate in Gemini',
-    generateInChatGPTBtn: 'Generate in ChatGPT',
-    toastGeminiCopiedPrompt: 'Prompt copied! Upload your image in Gemini and paste the prompt.',
-    toastChatGptCopiedPrompt: 'Prompt copied! Upload your image in ChatGPT and paste the prompt.',
-    imagePromptTitle: 'Thumbnail Image Prompt (Editable)',
-    imagePromptPlaceholder: 'Thumbnail image prompt will appear here automatically after generating titles...',
-    copyAndOpenGeminiBtn: 'Copy & Open Gemini',
-    copyAndOpenChatGptBtn: 'Copy & Open ChatGPT',
-    toastGeminiPromptCopied: 'Prompt copied! Upload your image in Gemini and paste it.',
-    toastChatGptPromptCopied: 'Prompt copied! Upload your image in ChatGPT and paste it.',
-    pasteKeyBtn: 'Paste',
-    pastedToast: 'Pasted successfully',
-    speechNotSupportedToast: 'Browser does not support voice input.',
-    channelNameLabel: 'Channel Name',
-    channelUrlLabel: 'Channel URL',
-    footerDevelopedBy: 'Developed by'
-  }
-};
-
-const STORAGE_KEY = 'yt_creator_template';
-
-const AVAILABLE_MODELS = [
-  { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', provider: 'gemini', free: true },
-  { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', provider: 'gemini', free: true },
-  { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash-Lite', provider: 'gemini', free: true },
-  { id: 'gemini-3.1-flash-lite', name: 'Gemini 3.1 Flash-Lite', provider: 'gemini', free: true },
-  { id: 'gemini-4-argon', name: 'Gemini 4 Argon', provider: 'gemini', free: false },
-  { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro Preview', provider: 'gemini', free: false },
-  { id: 'openai/gpt-oss-120b', name: 'GPT-OSS 120B', provider: 'groq', free: true },
-  { id: 'openai/gpt-oss-20b', name: 'GPT-OSS 20B', provider: 'groq', free: true },
-  { id: 'qwen/qwen3.8-27b', name: 'Qwen 3.8 27B', provider: 'groq', free: true },
-  { id: 'openrouter/free', name: 'OpenRouter Free Router', provider: 'openrouter', free: true }
-];
-
-const DEFAULT_TEMPLATE = `🎮 Welcome to {game} - Episode {episode}!
-
-In today's video, we are jumping back into {game} for another epic adventure!
-
-Drop a LIKE and SUBSCRIBE if you enjoy the video!
-
-📺 Check out {channel_name} and subscribe:
-🔗 {channel_link}
-
-⏱️ Timestamps:
-00:00 - Introduction
-01:30 - {game} Gameplay
-10:00 - Highlights
-15:00 - Outro & Next Episode
-
-#gaming #{game}`;
-
-const PRESET_TEMPLATES = [
-  {
-    id: 'roblox-challenge',
-    name: {
-      ar: 'قالب روبلوكس وتحديات الألعاب',
-      en: 'Roblox & Gaming Challenges'
-    },
-    text: `بسم الله الرحمن الرحيم، سبحان الله وبحمده، سبحان الله العظيم. 🤍
-
-في الحلقة {episode} من ماب "{game}" في روبلوكس.. رجعنا بتحدي أقوى وأسرع! ⛳😱 صرنا نجمع كميات أكبر ونحمل الكور بأسرع وقت ممكن عشان نفتح مناطق الـ Yards المتقدمة ونحطم أرقام قياسية جديدة! 🔥🚀
-
-📺 لا تنسون تشيكون على قناة المبدع {channel_name} وتدعمونه بالاشتراك:
-🔗 {channel_link}
-
-🔔 اشترك بالقناة وفعل جرس التنبيهات عشان ما يفوتك أي جديد:
-https://www.youtube.com/@IZEROXP?sub_confirmation=1
-
-👍 لا تنسى اللايك إذا عجبك المقطع!
-
-#Roblox #روبلوكس #{game} #gaming`
-  },
-  {
-    id: 'gameplay-walkthrough',
-    name: {
-      ar: 'قالب تختيم ومغامرات ألعاب',
-      en: 'Gameplay & Walkthrough'
-    },
-    text: `🎮 مرحباً بكم في الحلقة {episode} من تختيم لعبة {game}!
-
-في هذه الحلقة نستكمل رحلتنا ونواجه تحديات جديدة ومثيرة! شاركوني رأيكم في التعليقات.
-
-👍 إذا عجبك المقطع لا تنسى تضغط لايك وتشترك بالقناة وتفعل جرس التنبيهات 🔔
-
-━━━━━━━━━━━━━━━
-📺 لا تنسون تشيكون على قناة {channel_name} وتدعمونه بالاشتراك:
-🔗 {channel_link}
-
-🌐 جميع حساباتي وروابط البث:
-🔗 {linktree_link}
-
-💬 سيرفر الديسكورد:
-🔗 {discord_link}
-━━━━━━━━━━━━━━━
-#{game} #تختيم #العاب`
-  },
-  {
-    id: 'default-template',
-    name: {
-      ar: 'القالب الإنجليزي الافتراضي',
-      en: 'Default English Template'
-    },
-    text: DEFAULT_TEMPLATE
-  }
-];
-
-// Safe localStorage reader that falls back to defaults and warns if corrupted (invalid JSON)
-const safeGetLocalStorage = (key, fallback) => {
-  try {
-    if (typeof window === 'undefined' || !window.localStorage) {
-      return fallback;
-    }
-    const raw = localStorage.getItem(key);
-    if (raw === null || raw === undefined) {
-      return fallback;
-    }
-
-    if (raw === 'undefined' || raw === 'null') {
-      console.warn(`Corrupted localStorage entry for "${key}". Falling back to default.`);
-      return fallback;
-    }
-
-    const trimmed = raw.trim();
-    // If it starts with JSON syntax { or [, and is not a placeholder template like {game}
-    const isPlaceholderStart = /^\{(game|episode|ep)\}/i.test(trimmed);
-    if ((trimmed.startsWith('{') || trimmed.startsWith('[')) && !isPlaceholderStart) {
-      try {
-        const parsed = JSON.parse(trimmed);
-        if (typeof parsed === 'string') return parsed;
-        if (parsed && typeof parsed === 'object') {
-          if (typeof parsed.template === 'string') return parsed.template;
-          if (typeof parsed.apiKey === 'string') return parsed.apiKey;
-          if (typeof parsed.key === 'string') return parsed.key;
-        }
-        return raw;
-      } catch (jsonErr) {
-        console.warn(`Corrupted localStorage data for "${key}" (invalid JSON). Falling back to default.`, jsonErr);
-        return fallback;
-      }
-    }
-
-    return raw;
-  } catch (err) {
-    console.warn(`Failed to access localStorage for "${key}". Falling back to default.`, err);
-    return fallback;
-  }
-};
-
-const YOUTUBE_TITLE_VARIANTS = [
-  [
-    { template: "I Can't Believe What Happened in {game}! (Episode {ep})", baseScore: 92 },
-    { template: "The ULTIMATE Secret in {game} (Part {ep})", baseScore: 85 },
-    { template: "{game} Part {ep}: EVERYTHING Went Completely Wrong...", baseScore: 78 }
-  ],
-  [
-    { template: "How I Mastered {game} in Episode {ep} (INSANE PROGRESS)", baseScore: 94 },
-    { template: "DO NOT Make This Huge Mistake in {game}! (Part {ep})", baseScore: 88 },
-    { template: "100 Hours of {game} Led to THIS Boss Fight (Ep {ep})", baseScore: 82 }
-  ],
-  [
-    { template: "The Most Intense Moment in {game} History! (Episode {ep})", baseScore: 96 },
-    { template: "Is {game} Actually Harder Than We Thought? (Part {ep})", baseScore: 89 },
-    { template: "{game} Ep {ep} Speedrun Gone Horribly WRONG!", baseScore: 76 }
-  ],
-  [
-    { template: "Finding The Hidden God Tier Item in {game} (Part {ep})", baseScore: 95 },
-    { template: "I Challenged The Hardest Quest in {game} (Episode {ep})", baseScore: 87 },
-    { template: "Why Everyone Is Playing {game} Wrong (Part {ep})", baseScore: 80 }
-  ]
-];
-
-const SHORTS_TITLE_VARIANTS = [
-  [
-    "Wait for the ending in {game} 💀 #{gameTag} #shorts #{epTag}",
-    "Only 1% of {game} players know this trick! 🔥 #shorts #gaming #{epTag}",
-    "Never celebrate too early in {game}... 😭 #gaming #shorts #{gameTag}"
-  ],
-  [
-    "The CLEANEST play in {game} so far! 🎯 #shorts #gaming #{gameTag}",
-    "This {game} glitch makes zero sense 😂 #{gameTag} #shorts #{epTag}",
-    "Bro thought he was safe in {game} 💀 #gaming #shorts #{epTag}"
-  ],
-  [
-    "When your luck hits 999 in {game} ✨ #shorts #{gameTag} #gaming",
-    "The hardest reflex test in {game}! ⚡ #gaming #shorts #{epTag}",
-    "Top 3 {game} mistakes you are still making! ❌ #{gameTag} #shorts"
-  ],
-  [
-    "Can we survive this insane round in {game}? 😱 #shorts #{epTag} #gaming",
-    "Instant regret in {game} Episode {ep} 😭 #gaming #shorts #{gameTag}",
-    "Nobody expected this in {game}! 🤯 #{gameTag} #shorts #{epTag}"
-  ]
-];
-
-const DESCRIPTION_HOOKS = [
-  "In today's video, we are jumping back into {game} for another epic adventure!",
-  "In this episode, we push our limits, test new strategies, and uncover unbelievable secrets in {game}!",
-  "Get ready for non-stop action and jaw-dropping gameplay as we tackle the hardest challenges in {game} yet!",
-  "We are taking things to the next level in {game} today — drop a comment with your favorite moment!"
-];
-
-// iOS-Style Toggle Switch Component
-function ToggleSwitch({ label, note, checked, onChange }) {
-  return (
-    <div
-      role="switch"
-      aria-checked={checked}
-      tabIndex={0}
-      onClick={() => onChange(!checked)}
-      onKeyDown={(e) => {
-        if (e.key === ' ' || e.key === 'Enter') {
-          e.preventDefault();
-          onChange(!checked);
-        }
-      }}
-      className="min-h-[44px] flex flex-col justify-between gap-2 p-3 rounded-lg bg-[#0d0f14]/80 border border-gray-700/60 hover:border-purple-500/50 cursor-pointer transition-colors select-none focus:outline-none focus:ring-1 focus:ring-purple-500"
-    >
-      <div className="flex items-center justify-between gap-2.5 w-full">
-        <span className="text-xs sm:text-sm font-medium text-gray-200 leading-tight">
-          {label}
-        </span>
-        <div
-          dir="ltr"
-          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ease-in-out p-0.5 ${
-            checked ? 'bg-purple-600 shadow-[0_0_10px_rgba(168,85,247,0.35)]' : 'bg-gray-700'
-          }`}
-        >
-          <div
-            className={`h-5 w-5 rounded-full bg-white shadow-md transform transition-transform duration-200 ease-in-out ${
-              checked ? 'translate-x-5' : 'translate-x-0'
-            }`}
-          />
-        </div>
-      </div>
-      {note && (
-        <p className="text-xs text-gray-400 leading-relaxed">
-          {note}
-        </p>
-      )}
-    </div>
-  );
-}
+import { translations } from './i18n/translations';
+import { STORAGE_KEY, DEFAULT_TEMPLATE, PRESET_TEMPLATES } from './config/templates';
+import { YOUTUBE_TITLE_VARIANTS, SHORTS_TITLE_VARIANTS, DESCRIPTION_HOOKS } from './config/titleVariants';
+import { USER_CONFIG } from './config/userConfig';
+import { safeGetLocalStorage } from './utils/storage';
+import ToggleSwitch from './components/ToggleSwitch';
+import Header from './components/Header';
+import SettingsModal from './components/SettingsModal';
+import { getSecret, setSecret } from './services/secrets';
+import { executeTextGeneration, getSpecificApiErrorMessage } from './services/ai';
 
 export default function App() {
   // Phase 7: Multi-Language Support
@@ -625,10 +106,10 @@ export default function App() {
     return safeGetLocalStorage(STORAGE_KEY, DEFAULT_TEMPLATE);
   });
   const [channelName, setChannelName] = useState(() => {
-    return safeGetLocalStorage('channel_name', 'iZreoXP');
+    return safeGetLocalStorage('channel_name', USER_CONFIG.channelName);
   });
   const [channelLink, setChannelLink] = useState(() => {
-    return safeGetLocalStorage('channel_link', 'https://www.youtube.com/@IZEROXP');
+    return safeGetLocalStorage('channel_link', USER_CONFIG.channelUrl);
   });
   const [isEditing, setIsEditing] = useState(false);
   const [saveStatus, setSaveStatus] = useState(false);
@@ -719,12 +200,12 @@ export default function App() {
     // Ensure default channel_name and channel_link exist in localStorage
     if (localStorage.getItem('channel_name') === null) {
       try {
-        localStorage.setItem('channel_name', 'iZreoXP');
+        localStorage.setItem('channel_name', USER_CONFIG.channelName);
       } catch {}
     }
     if (localStorage.getItem('channel_link') === null) {
       try {
-        localStorage.setItem('channel_link', 'https://www.youtube.com/@IZEROXP');
+        localStorage.setItem('channel_link', USER_CONFIG.channelUrl);
       } catch {}
     }
 
@@ -756,6 +237,8 @@ export default function App() {
       setToastMessage(null);
     }, 2500);
   };
+
+  const uiHooks = { t, showToast };
 
   const saveToLocalStorage = (content) => {
     try {
@@ -814,8 +297,8 @@ export default function App() {
 
   const applyChannelPlaceholders = (text) => {
     if (!text || typeof text !== 'string') return text;
-    const cName = safeGetLocalStorage('channel_name', channelName || 'iZreoXP');
-    const cLink = safeGetLocalStorage('channel_link', channelLink || 'https://www.youtube.com/@IZEROXP');
+    const cName = safeGetLocalStorage('channel_name', channelName || USER_CONFIG.channelName);
+    const cLink = safeGetLocalStorage('channel_link', channelLink || USER_CONFIG.channelUrl);
     return text
       .replace(/{channel_name}/gi, cName)
       .replace(/{channel_link}/gi, cLink);
@@ -824,16 +307,16 @@ export default function App() {
   const handleClearSingleKey = (provider) => {
     try {
       if (provider === 'gemini') {
-        localStorage.removeItem('gemini_api_key');
+        setSecret('gemini_api_key', '');
         setApiKeyInput('');
       } else if (provider === 'openai') {
-        localStorage.removeItem('openai_api_key');
+        setSecret('openai_api_key', '');
         setOpenaiApiKeyInput('');
       } else if (provider === 'groq') {
-        localStorage.removeItem('groq_api_key');
+        setSecret('groq_api_key', '');
         setGroqApiKeyInput('');
       } else if (provider === 'openrouter') {
-        localStorage.removeItem('openrouter_api_key');
+        setSecret('openrouter_api_key', '');
         setOpenRouterApiKeyInput('');
       }
       showToast(translations[lang]['keyClearedSuccess'], 'success');
@@ -942,10 +425,10 @@ export default function App() {
   };
 
   const openSettings = () => {
-    const savedKey = safeGetLocalStorage('gemini_api_key', '');
-    const savedOpenaiKey = safeGetLocalStorage('openai_api_key', '');
-    const savedGroqKey = safeGetLocalStorage('groq_api_key', '');
-    const savedOpenRouterKey = safeGetLocalStorage('openrouter_api_key', '');
+    const savedKey = getSecret('gemini_api_key');
+    const savedOpenaiKey = getSecret('openai_api_key');
+    const savedGroqKey = getSecret('groq_api_key');
+    const savedOpenRouterKey = getSecret('openrouter_api_key');
     const savedTextProvider = safeGetLocalStorage('text_provider', 'gemini');
     const savedImageProvider = safeGetLocalStorage('image_provider', 'pollinations');
     const savedGeminiModel = safeGetLocalStorage('selected_gemini_model', 'gemini-3.8-flash');
@@ -971,10 +454,10 @@ export default function App() {
 
   const handleSaveApiKey = () => {
     try {
-      localStorage.setItem('gemini_api_key', apiKeyInput.trim());
-      localStorage.setItem('openai_api_key', openaiApiKeyInput.trim());
-      localStorage.setItem('groq_api_key', groqApiKeyInput.trim());
-      localStorage.setItem('openrouter_api_key', openRouterApiKeyInput.trim());
+      setSecret('gemini_api_key', apiKeyInput.trim());
+      setSecret('openai_api_key', openaiApiKeyInput.trim());
+      setSecret('groq_api_key', groqApiKeyInput.trim());
+      setSecret('openrouter_api_key', openRouterApiKeyInput.trim());
       localStorage.setItem('text_provider', textProviderInput);
       localStorage.setItem('image_provider', imageProviderInput);
       localStorage.setItem('selected_gemini_model', geminiModelInput);
@@ -989,10 +472,10 @@ export default function App() {
 
   const handleClearApiKey = () => {
     try {
-      localStorage.removeItem('gemini_api_key');
-      localStorage.removeItem('openai_api_key');
-      localStorage.removeItem('groq_api_key');
-      localStorage.removeItem('openrouter_api_key');
+      setSecret('gemini_api_key', '');
+      setSecret('openai_api_key', '');
+      setSecret('groq_api_key', '');
+      setSecret('openrouter_api_key', '');
       setApiKeyInput('');
       setOpenaiApiKeyInput('');
       setGroqApiKeyInput('');
@@ -1246,362 +729,6 @@ export default function App() {
 
 
 
-  // Gemini API caller with up to 3 attempts and 20s global timeout via AbortController
-  const callGeminiWithRetry = async (apiKey, requestBody) => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      controller.abort();
-    }, 20000);
-
-    const selectedGeminiModel = safeGetLocalStorage('selected_gemini_model', 'gemini-3.8-flash').trim() || 'gemini-3.8-flash';
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${selectedGeminiModel}:generateContent?key=${apiKey}`;
-
-    let lastStatus = 'Network error';
-    const hasGroqFallback = Boolean(safeGetLocalStorage('groq_api_key', '').trim());
-    const maxAttempts = hasGroqFallback ? 1 : 3;
-
-    try {
-      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-          if (controller.signal.aborted) {
-            throw new DOMException('Aborted', 'AbortError');
-          }
-
-          const res = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(requestBody),
-            signal: controller.signal
-          });
-
-          if (res.ok) {
-            const responseJson = await res.json();
-            const rawText = responseJson.candidates?.[0]?.content?.parts?.[0]?.text;
-            if (!rawText) {
-              throw new Error('Empty response');
-            }
-            return JSON.parse(rawText);
-          }
-
-          lastStatus = res.status;
-          if (res.status === 401 || res.status === 403 || res.status === 404 || res.status === 400 || res.status === 429) {
-            let errMsg = `Status ${res.status}`;
-            try {
-              const errJson = await res.json();
-              if (errJson?.error?.message) errMsg = errJson.error.message;
-            } catch {}
-            const err = new Error(errMsg);
-            err.status = res.status;
-            throw err;
-          }
-
-          // If retryable status (503, 500, etc.) and attempts remain
-          if (attempt < maxAttempts) {
-            await new Promise((resolve, reject) => {
-              const timer = setTimeout(resolve, 1000 * attempt);
-              controller.signal.addEventListener('abort', () => {
-                clearTimeout(timer);
-                reject(new DOMException('Aborted', 'AbortError'));
-              }, { once: true });
-            });
-          }
-        } catch (err) {
-          if (err.name === 'AbortError' || controller.signal.aborted) {
-            throw err;
-          }
-          if (err.status === 401 || err.status === 403 || err.status === 404 || err.status === 400 || err.status === 429) {
-            throw err;
-          }
-          lastStatus = err.status || err.message || 'Network error';
-          if (attempt < maxAttempts) {
-            await new Promise((resolve, reject) => {
-              const timer = setTimeout(resolve, 1000 * attempt);
-              controller.signal.addEventListener('abort', () => {
-                clearTimeout(timer);
-                reject(new DOMException('Aborted', 'AbortError'));
-              }, { once: true });
-            });
-          }
-        }
-      }
-
-      // Max attempts failed
-      const finalErr = new Error(`Text generation failed after ${maxAttempts} attempts: ${lastStatus}`);
-      finalErr.isAllAttemptsFailed = true;
-      finalErr.status = lastStatus;
-      throw finalErr;
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  };
-
-  // Normalizes AI response from Groq (LLaMA) or Gemini
-  const normalizeAiResponse = (parsed) => {
-    if (!parsed || typeof parsed !== 'object') return {};
-    const result = { ...parsed };
-
-    // Video titles normalization
-    const rawVideoTitles = result.videoTitles || result.video_titles || result.titles;
-    if (Array.isArray(rawVideoTitles)) {
-      result.videoTitles = rawVideoTitles.map((item) => {
-        if (typeof item === 'string') {
-          return { title: item, score: 85 };
-        }
-        if (item && typeof item === 'object') {
-          return {
-            title: item.title || item.name || '',
-            score: typeof item.score === 'number' ? item.score : (Number(item.score) || 85)
-          };
-        }
-        return { title: String(item || ''), score: 80 };
-      });
-    }
-
-    // Shorts titles normalization
-    const rawShortsTitles = result.shortsTitles || result.shorts_titles || result.shorts;
-    if (Array.isArray(rawShortsTitles)) {
-      result.shortsTitles = rawShortsTitles.map((item) => {
-        if (typeof item === 'string') return item;
-        if (item && typeof item === 'object') return item.title || item.text || String(item);
-        return String(item || '');
-      });
-    }
-
-    // Description normalization
-    const rawDescription = result.description ?? result.youtube_description ?? result.desc;
-    if (typeof rawDescription === 'string') {
-      result.description = rawDescription;
-    } else if (Array.isArray(rawDescription)) {
-      result.description = rawDescription.join('\n\n');
-    }
-
-    return result;
-  };
-
-  // Groq API caller using selected model from localStorage
-  const callGroq = async (groqApiKey, prompt) => {
-    const selectedGroqModel = safeGetLocalStorage('selected_groq_model', 'openai/gpt-oss-120b').trim() || 'openai/gpt-oss-120b';
-    const endpoint = 'https://api.groq.com/openai/v1/chat/completions';
-
-    // Phase 34: Ensure the prompt sent to Groq explicitly tells the model to output JSON
-    const groqPrompt = prompt.includes('Please output the response in JSON format.')
-      ? prompt
-      : `${prompt}\nPlease output the response in JSON format.`;
-
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${groqApiKey}`
-      },
-      body: JSON.stringify({
-        model: selectedGroqModel,
-        messages: [{ role: 'user', content: groqPrompt }],
-        response_format: { type: 'json_object' }
-      })
-    });
-
-    if (!res.ok) {
-      let errMsg = `Status ${res.status}`;
-      try {
-        const errJson = await res.json();
-        if (errJson?.error?.message) {
-          errMsg = errJson.error.message;
-        } else if (errJson?.message) {
-          errMsg = errJson.message;
-        }
-      } catch {
-        const errText = await res.text().catch(() => '');
-        if (errText) errMsg = errText;
-      }
-      const err = new Error(errMsg);
-      err.status = res.status;
-      throw err;
-    }
-
-    const resJson = await res.json();
-    const rawContent = resJson.choices?.[0]?.message?.content;
-    if (!rawContent) {
-      throw new Error('Empty content from Groq');
-    }
-
-    let parsed;
-    try {
-      let cleanJson = rawContent.trim();
-      if (cleanJson.startsWith('```')) {
-        cleanJson = cleanJson.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
-      }
-      parsed = JSON.parse(cleanJson);
-    } catch {
-      const firstBrace = rawContent.indexOf('{');
-      const lastBrace = rawContent.lastIndexOf('}');
-      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-        parsed = JSON.parse(rawContent.substring(firstBrace, lastBrace + 1));
-      } else {
-        parsed = JSON.parse(rawContent);
-      }
-    }
-
-    return normalizeAiResponse(parsed);
-  };
-
-  // OpenAI API caller using gpt-4o-mini
-  const callOpenAI = async (openaiApiKey, prompt) => {
-    const endpoint = 'https://api.openai.com/v1/chat/completions';
-    const jsonInstructionPrompt = `${prompt}\nEnsure the output is a valid JSON object with keys: "videoTitles", "shortsTitles", "description" (or the specific requested fields).`;
-
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${openaiApiKey}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [{ role: 'user', content: jsonInstructionPrompt }],
-        response_format: { type: 'json_object' }
-      })
-    });
-
-    if (!res.ok) {
-      let errMsg = `Status ${res.status}`;
-      try {
-        const errJson = await res.json();
-        if (errJson?.error?.message) {
-          errMsg = errJson.error.message;
-        } else if (errJson?.message) {
-          errMsg = errJson.message;
-        }
-      } catch {
-        const errText = await res.text().catch(() => '');
-        if (errText) errMsg = errText;
-      }
-      throw new Error(`OpenAI: ${errMsg}`);
-    }
-
-    const resJson = await res.json();
-    const rawContent = resJson.choices?.[0]?.message?.content;
-    if (!rawContent) {
-      throw new Error('Empty content from OpenAI');
-    }
-
-    const parsed = JSON.parse(rawContent);
-    return normalizeAiResponse(parsed);
-  };
-
-  // Text generation runner with Gemini primary & Groq fallback
-  const executeWithGroqFallback = async (prompt, geminiRequestBody) => {
-    const geminiKey = safeGetLocalStorage('gemini_api_key', '').trim();
-    const groqKey = safeGetLocalStorage('groq_api_key', '').trim();
-
-    if (!geminiKey && !groqKey) {
-      showToast(t('toastKeyRequired'), 'error');
-      return null;
-    }
-
-    if (geminiKey) {
-      try {
-        const geminiData = await callGeminiWithRetry(geminiKey, geminiRequestBody);
-        return { data: geminiData, provider: 'gemini' };
-      } catch (geminiErr) {
-        // Without Groq key -> throw Gemini error so only Gemini error is displayed
-        if (!groqKey) {
-          throw { isGeminiOnly: true, error: geminiErr };
-        }
-
-        // With Groq key -> show fallback toast and call Groq
-        showToast(t('toastFallbackToGroq'), 'info');
-
-        try {
-          const groqData = await callGroq(groqKey, prompt);
-          return { data: groqData, provider: 'groq' };
-        } catch (groqErr) {
-          console.warn('Groq fallback failed:', groqErr);
-          throw { isBothFailed: true, geminiError: geminiErr, groqError: groqErr };
-        }
-      }
-    } else {
-      // geminiKey is missing but groqKey is present: trigger Groq
-      showToast(t('toastFallbackToGroq'), 'info');
-      try {
-        const groqData = await callGroq(groqKey, prompt);
-        return { data: groqData, provider: 'groq' };
-      } catch (groqErr) {
-        throw { isBothFailed: true, groqError: groqErr };
-      }
-    }
-  };
-
-  // Universal Text Generation Dispatcher
-  const executeTextGeneration = async (prompt, geminiRequestBody) => {
-    const textProvider = safeGetLocalStorage('text_provider', 'gemini');
-    const geminiKey = safeGetLocalStorage('gemini_api_key', '').trim();
-    const openaiKey = safeGetLocalStorage('openai_api_key', '').trim();
-    const groqKey = safeGetLocalStorage('groq_api_key', '').trim();
-
-    if (textProvider === 'chatgpt') {
-      if (!openaiKey) {
-        showToast(t('toastOpenAiKeyRequired'), 'error');
-        return null;
-      }
-      try {
-        const openAiData = await callOpenAI(openaiKey, prompt);
-        return { data: openAiData, provider: 'chatgpt' };
-      } catch (openAiErr) {
-        throw { isChatGpt: true, error: openAiErr };
-      }
-    }
-
-    if (textProvider === 'groq') {
-      if (!groqKey) {
-        showToast(t('toastGroqKeyRequired'), 'error');
-        return null;
-      }
-      try {
-        const groqData = await callGroq(groqKey, prompt);
-        return { data: groqData, provider: 'groq' };
-      } catch (groqErr) {
-        throw { isGroqOnly: true, groqError: groqErr };
-      }
-    }
-
-    // Default: Gemini with Groq fallback
-    if (!geminiKey && !groqKey) {
-      showToast(t('toastGeminiKeyRequired'), 'error');
-      return null;
-    }
-    return executeWithGroqFallback(prompt, geminiRequestBody);
-  };
-
-  // Phase 28: Specific API Error Formatter for Gemini and Groq
-  const getSpecificApiErrorMessage = (err, provider = 'gemini') => {
-    if (!err) return 'Unknown error occurred.';
-    const status = err?.status || (typeof err === 'number' ? err : null) || (err?.message && err.message.match(/\b(401|429|403|404|500|503)\b/)?.[1]);
-    const message = err?.message || (typeof err === 'string' ? err : '');
-
-    if (provider === 'gemini') {
-      if (status == 429 || message.includes('429') || message.toLowerCase().includes('quota') || message.toLowerCase().includes('resource_exhausted')) {
-        return 'Gemini Quota Exceeded. Try again later or use Groq.';
-      }
-      if (status == 401 || message.includes('401') || message.toLowerCase().includes('api_key_invalid') || message.toLowerCase().includes('api key')) {
-        return 'Gemini API Key is invalid.';
-      }
-      return message || `Gemini error (${status || 'Network error'})`;
-    }
-
-    if (provider === 'groq') {
-      if (status == 401 || message.includes('401') || message.toLowerCase().includes('invalid_api_key')) {
-        return 'Groq API Key is invalid.';
-      }
-      if (status == 429 || message.includes('429') || message.toLowerCase().includes('rate_limit_exceeded') || message.toLowerCase().includes('quota')) {
-        return 'Groq Quota Exceeded. Try again later.';
-      }
-      return message || `Groq error (${status || 'Network error'})`;
-    }
-
-    return message || `${provider} error`;
-  };
-
   // Helper for generation error handling (Gemini, ChatGPT, or Groq)
   const handleGenerationError = (err) => {
     if (!err) return;
@@ -1657,9 +784,9 @@ export default function App() {
     }
 
     const textProvider = safeGetLocalStorage('text_provider', 'gemini');
-    const geminiKey = safeGetLocalStorage('gemini_api_key', '').trim();
-    const openaiKey = safeGetLocalStorage('openai_api_key', '').trim();
-    const groqKey = safeGetLocalStorage('groq_api_key', '').trim();
+    const geminiKey = getSecret('gemini_api_key').trim();
+    const openaiKey = getSecret('openai_api_key').trim();
+    const groqKey = getSecret('groq_api_key').trim();
 
     if (textProvider === 'chatgpt' && !openaiKey) {
       showToast(t('toastOpenAiKeyRequired'), 'error');
@@ -1781,7 +908,7 @@ Do not include any image description text in the JSON. Return only the JSON. ${l
         }
       };
 
-      const result = await executeTextGeneration(prompt, requestBody);
+      const result = await executeTextGeneration(prompt, requestBody, uiHooks);
       if (!result) return;
 
       const parsedData = result.data;
@@ -1812,9 +939,9 @@ Do not include any image description text in the JSON. Return only the JSON. ${l
   // Independent Regenerate Titles via Gemini API with Groq Fallback
   const handleRegenerateTitles = async () => {
     const textProvider = safeGetLocalStorage('text_provider', 'gemini');
-    const geminiKey = safeGetLocalStorage('gemini_api_key', '').trim();
-    const openaiKey = safeGetLocalStorage('openai_api_key', '').trim();
-    const groqKey = safeGetLocalStorage('groq_api_key', '').trim();
+    const geminiKey = getSecret('gemini_api_key').trim();
+    const openaiKey = getSecret('openai_api_key').trim();
+    const groqKey = getSecret('groq_api_key').trim();
 
     if (textProvider === 'chatgpt' && !openaiKey) {
       showToast(t('toastOpenAiKeyRequired'), 'error');
@@ -1877,7 +1004,7 @@ Do not include any image description text in the JSON. Return only the JSON. ${l
         }
       };
 
-      const result = await executeTextGeneration(prompt, requestBody);
+      const result = await executeTextGeneration(prompt, requestBody, uiHooks);
       if (!result) return;
 
       if (Array.isArray(result.data.videoTitles)) {
@@ -1896,9 +1023,9 @@ Do not include any image description text in the JSON. Return only the JSON. ${l
   // Independent Regenerate Shorts via Gemini API with Groq Fallback
   const handleRegenerateShorts = async () => {
     const textProvider = safeGetLocalStorage('text_provider', 'gemini');
-    const geminiKey = safeGetLocalStorage('gemini_api_key', '').trim();
-    const openaiKey = safeGetLocalStorage('openai_api_key', '').trim();
-    const groqKey = safeGetLocalStorage('groq_api_key', '').trim();
+    const geminiKey = getSecret('gemini_api_key').trim();
+    const openaiKey = getSecret('openai_api_key').trim();
+    const groqKey = getSecret('groq_api_key').trim();
 
     if (textProvider === 'chatgpt' && !openaiKey) {
       showToast(t('toastOpenAiKeyRequired'), 'error');
@@ -1954,7 +1081,7 @@ Do not include any image description text in the JSON. Return only the JSON. ${l
         }
       };
 
-      const result = await executeTextGeneration(prompt, requestBody);
+      const result = await executeTextGeneration(prompt, requestBody, uiHooks);
       if (!result) return;
 
       if (Array.isArray(result.data.shortsTitles)) {
@@ -1971,9 +1098,9 @@ Do not include any image description text in the JSON. Return only the JSON. ${l
   // Independent Regenerate Description via Gemini API with Groq Fallback
   const handleRegenerateDescription = async () => {
     const textProvider = safeGetLocalStorage('text_provider', 'gemini');
-    const geminiKey = safeGetLocalStorage('gemini_api_key', '').trim();
-    const openaiKey = safeGetLocalStorage('openai_api_key', '').trim();
-    const groqKey = safeGetLocalStorage('groq_api_key', '').trim();
+    const geminiKey = getSecret('gemini_api_key').trim();
+    const openaiKey = getSecret('openai_api_key').trim();
+    const groqKey = getSecret('groq_api_key').trim();
 
     if (textProvider === 'chatgpt' && !openaiKey) {
       showToast(t('toastOpenAiKeyRequired'), 'error');
@@ -2036,7 +1163,7 @@ Do not include any image description text in the JSON. Return only the JSON. ${l
         }
       };
 
-      const result = await executeTextGeneration(prompt, requestBody);
+      const result = await executeTextGeneration(prompt, requestBody, uiHooks);
       if (!result) return;
 
       if (typeof result.data.description === 'string') {
@@ -2160,56 +1287,7 @@ Do not include any image description text in the JSON. Return only the JSON. ${l
       dir={lang === 'ar' ? 'rtl' : 'ltr'}
       className={`${lang === 'ar' ? 'font-arabic' : 'font-english'} min-h-screen bg-[#0d0f14] dark:bg-[#0d0f14] text-gray-100 dark:text-gray-100 flex flex-col relative w-full overflow-x-hidden transition-colors duration-200`}
     >
-      {/* Header */}
-      <header className="border-b border-gray-800 bg-[#151922]/80 backdrop-blur px-4 sm:px-6 py-3.5 sm:py-4 flex items-center justify-between shadow-md">
-        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 ltr:pr-2 rtl:pl-2">
-          <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-purple-500 shadow-[0_0_10px_#a855f7] shrink-0" />
-          <h1 className="text-base sm:text-xl font-bold tracking-wide bg-gradient-to-r from-purple-400 via-fuchsia-400 to-emerald-400 bg-clip-text text-transparent truncate">
-            {translations[lang]['appTitle']}
-          </h1>
-          <a
-            href="https://www.youtube.com/@IZEROXP"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[11px] sm:text-xs px-2 py-0.5 rounded-full bg-purple-950/60 border border-purple-500/40 text-purple-300 hover:text-purple-200 hover:border-purple-400 transition-all font-medium shrink-0 cursor-pointer shadow-sm"
-            title="iZreoXP YouTube Channel"
-          >
-            by iZreoXP
-          </a>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Phase 28: Dark / Light Mode Toggle Button */}
-          <button
-            type="button"
-            aria-label={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            onClick={toggleTheme}
-            className="min-h-[44px] min-w-[44px] p-2 rounded-lg bg-gray-800/80 border border-gray-700 text-gray-300 hover:text-amber-400 hover:border-amber-500/50 hover:shadow-[0_0_12px_rgba(251,191,36,0.3)] transition-all duration-200 cursor-pointer flex items-center justify-center shrink-0"
-            title={theme === 'dark' ? 'الوضع المضيء' : 'الوضع الداكن'}
-          >
-            {theme === 'dark' ? (
-              <Sun className="w-5 h-5 text-amber-400" />
-            ) : (
-              <Moon className="w-5 h-5 text-purple-600" />
-            )}
-          </button>
-          <button
-            type="button"
-            aria-label="Toggle language"
-            onClick={() => setLang((prev) => (prev === 'ar' ? 'en' : 'ar'))}
-            className="min-h-[44px] min-w-[44px] px-3 py-2 rounded-lg bg-gray-800/80 border border-gray-700 text-gray-200 hover:text-purple-400 hover:border-purple-500/50 hover:shadow-[0_0_12px_rgba(168,85,247,0.3)] transition-all duration-200 cursor-pointer flex items-center justify-center font-bold text-sm shrink-0 select-none"
-          >
-            {lang === 'ar' ? 'EN' : 'ع'}
-          </button>
-          <button
-            type="button"
-            aria-label={translations[lang]['settingsTitle']}
-            onClick={openSettings}
-            className="min-h-[44px] min-w-[44px] p-2 rounded-lg bg-gray-800/80 border border-gray-700 text-gray-300 hover:text-emerald-400 hover:border-emerald-500/50 hover:shadow-[0_0_12px_rgba(168,85,247,0.3)] transition-all duration-200 cursor-pointer flex items-center justify-center shrink-0"
-          >
-            <Settings className="w-5 h-5" />
-          </button>
-        </div>
-      </header>
+      <Header lang={lang} theme={theme} toggleTheme={toggleTheme} setLang={setLang} openSettings={openSettings} />
 
       {/* Main Content */}
       <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col gap-6 pb-16 sm:pb-20">
@@ -2408,7 +1486,7 @@ Do not include any image description text in the JSON. Return only the JSON. ${l
                 type="text"
                 value={channelName}
                 onChange={handleChannelNameChange}
-                placeholder="iZreoXP"
+                placeholder={USER_CONFIG.channelName}
                 className="w-full min-h-[38px] px-3 py-1.5 rounded-lg bg-[#0d0f14] border border-gray-700 text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
               />
             </div>
@@ -2421,7 +1499,7 @@ Do not include any image description text in the JSON. Return only the JSON. ${l
                 type="text"
                 value={channelLink}
                 onChange={handleChannelLinkChange}
-                placeholder="https://www.youtube.com/@IZEROXP"
+                placeholder={USER_CONFIG.channelUrl}
                 className="w-full min-h-[38px] px-3 py-1.5 rounded-lg bg-[#0d0f14] border border-gray-700 text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
               />
             </div>
@@ -2902,12 +1980,12 @@ Do not include any image description text in the JSON. Return only the JSON. ${l
           <span>© 2026 ViralForge.</span>
           <span>{translations[lang]['footerDevelopedBy']}</span>
           <a
-            href="https://www.youtube.com/@IZEROXP"
+            href={USER_CONFIG.channelUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="text-purple-400 hover:text-purple-300 font-semibold underline underline-offset-2 transition-colors cursor-pointer"
           >
-            iZreoXP
+            {USER_CONFIG.channelName}
           </a>
           <span>.</span>
         </div>
@@ -2941,324 +2019,7 @@ Do not include any image description text in the JSON. Return only the JSON. ${l
         </div>
       )}
 
-      {/* Settings Modal */}
-      {isSettingsOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="settings-modal-title"
-          onClick={handleBackdropClick}
-          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in"
-        >
-          <div className="bg-[#151922] border border-gray-800 rounded-2xl w-full max-w-md p-4 sm:p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-gray-800/80 pb-4">
-              <div className="flex items-center gap-2.5 min-w-0 ltr:pr-2 rtl:pl-2">
-                <div className="w-8 h-8 rounded-lg bg-purple-950/60 border border-purple-500/30 flex items-center justify-center text-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.2)] shrink-0">
-                  <Key className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <h2 id="settings-modal-title" className="text-base font-semibold text-gray-100 truncate">
-                    {translations[lang]['settingsTitle']}
-                  </h2>
-                  <p className="text-xs text-gray-400 truncate">
-                    {translations[lang]['settingsSubtitle']}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                aria-label="Close Settings"
-                onClick={() => setIsSettingsOpen(false)}
-                className="min-h-[44px] min-w-[44px] p-1.5 rounded-lg text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-all cursor-pointer flex items-center justify-center shrink-0"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {/* Gemini API Key */}
-              <div>
-                <div className="flex items-center justify-between gap-2 mb-1.5">
-                  <label htmlFor="gemini-api-key-input" className="block text-sm font-medium text-gray-300">
-                    {translations[lang]['apiKeyLabel']}
-                  </label>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => handlePasteKey('gemini')}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-gray-800/90 hover:bg-gray-700 text-purple-300 hover:text-purple-200 border border-purple-500/30 hover:border-purple-500/50 shadow-sm transition-all cursor-pointer"
-                      title={translations[lang]['pasteKeyBtn']}
-                    >
-                      <Clipboard className="w-3 h-3 text-purple-400" />
-                      <span>{translations[lang]['pasteKeyBtn']}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleClearSingleKey('gemini')}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-red-950/60 hover:bg-red-900/80 text-red-300 hover:text-red-200 border border-red-500/30 transition-all cursor-pointer"
-                      title={translations[lang]['clearKeyBtn']}
-                    >
-                      <Trash2 className="w-3 h-3 text-red-400" />
-                      <span>{translations[lang]['clearKeyBtn']}</span>
-                    </button>
-                    <a
-                      href="https://aistudio.google.com/app/apikey"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-gray-800/90 hover:bg-gray-700 text-purple-300 hover:text-purple-200 border border-purple-500/30 hover:border-purple-500/50 shadow-sm transition-all cursor-pointer"
-                    >
-                      <span>{translations[lang]['getKeyBtn']}</span>
-                      <ExternalLink className="w-3 h-3 text-purple-400" />
-                    </a>
-                  </div>
-                </div>
-                <div className="relative">
-                  <input
-                    id="gemini-api-key-input"
-                    type={showApiKey ? 'text' : 'password'}
-                    value={apiKeyInput}
-                    onChange={(e) => setApiKeyInput(e.target.value)}
-                    placeholder={translations[lang]['apiKeyPlaceholder']}
-                    className="w-full min-h-[44px] px-4 py-2.5 ltr:pr-12 rtl:pl-12 rounded-lg bg-[#0d0f14] border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 font-mono text-sm transition-all"
-                  />
-                  <button
-                    type="button"
-                    aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
-                    onClick={() => setShowApiKey(!showApiKey)}
-                    className="min-h-[44px] min-w-[44px] absolute ltr:right-1 rtl:left-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 transition-colors cursor-pointer flex items-center justify-center"
-                  >
-                    {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* OpenAI API Key */}
-              <div>
-                <div className="flex items-center justify-between gap-2 mb-1.5">
-                  <label htmlFor="openai-api-key-input" className="block text-sm font-medium text-gray-300">
-                    {translations[lang]['openaiApiKeyLabel']}
-                  </label>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => handlePasteKey('openai')}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-gray-800/90 hover:bg-gray-700 text-purple-300 hover:text-purple-200 border border-purple-500/30 hover:border-purple-500/50 shadow-sm transition-all cursor-pointer"
-                      title={translations[lang]['pasteKeyBtn']}
-                    >
-                      <Clipboard className="w-3 h-3 text-purple-400" />
-                      <span>{translations[lang]['pasteKeyBtn']}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleClearSingleKey('openai')}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-red-950/60 hover:bg-red-900/80 text-red-300 hover:text-red-200 border border-red-500/30 transition-all cursor-pointer"
-                      title={translations[lang]['clearKeyBtn']}
-                    >
-                      <Trash2 className="w-3 h-3 text-red-400" />
-                      <span>{translations[lang]['clearKeyBtn']}</span>
-                    </button>
-                    <a
-                      href="https://platform.openai.com/api-keys"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-gray-800/90 hover:bg-gray-700 text-purple-300 hover:text-purple-200 border border-purple-500/30 hover:border-purple-500/50 shadow-sm transition-all cursor-pointer"
-                    >
-                      <span>{translations[lang]['getKeyBtn']}</span>
-                      <ExternalLink className="w-3 h-3 text-purple-400" />
-                    </a>
-                  </div>
-                </div>
-                <div className="relative">
-                  <input
-                    id="openai-api-key-input"
-                    type={showOpenaiApiKey ? 'text' : 'password'}
-                    value={openaiApiKeyInput}
-                    onChange={(e) => setOpenaiApiKeyInput(e.target.value)}
-                    placeholder={translations[lang]['openaiApiKeyPlaceholder']}
-                    className="w-full min-h-[44px] px-4 py-2.5 ltr:pr-12 rtl:pl-12 rounded-lg bg-[#0d0f14] border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 font-mono text-sm transition-all"
-                  />
-                  <button
-                    type="button"
-                    aria-label={showOpenaiApiKey ? 'Hide OpenAI API key' : 'Show OpenAI API key'}
-                    onClick={() => setShowOpenaiApiKey(!showOpenaiApiKey)}
-                    className="min-h-[44px] min-w-[44px] absolute ltr:right-1 rtl:left-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 transition-colors cursor-pointer flex items-center justify-center"
-                  >
-                    {showOpenaiApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Groq API Key */}
-              <div>
-                <div className="flex items-center justify-between gap-2 mb-1.5">
-                  <label htmlFor="groq-api-key-input" className="block text-sm font-medium text-gray-300">
-                    {translations[lang]['groqApiKeyLabel']}
-                  </label>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => handlePasteKey('groq')}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-gray-800/90 hover:bg-gray-700 text-purple-300 hover:text-purple-200 border border-purple-500/30 hover:border-purple-500/50 shadow-sm transition-all cursor-pointer"
-                      title={translations[lang]['pasteKeyBtn']}
-                    >
-                      <Clipboard className="w-3 h-3 text-purple-400" />
-                      <span>{translations[lang]['pasteKeyBtn']}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleClearSingleKey('groq')}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-red-950/60 hover:bg-red-900/80 text-red-300 hover:text-red-200 border border-red-500/30 transition-all cursor-pointer"
-                      title={translations[lang]['clearKeyBtn']}
-                    >
-                      <Trash2 className="w-3 h-3 text-red-400" />
-                      <span>{translations[lang]['clearKeyBtn']}</span>
-                    </button>
-                    <a
-                      href="https://console.groq.com/keys"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-gray-800/90 hover:bg-gray-700 text-purple-300 hover:text-purple-200 border border-purple-500/30 hover:border-purple-500/50 shadow-sm transition-all cursor-pointer"
-                    >
-                      <span>{translations[lang]['getKeyBtn']}</span>
-                      <ExternalLink className="w-3 h-3 text-purple-400" />
-                    </a>
-                  </div>
-                </div>
-                <div className="relative">
-                  <input
-                    id="groq-api-key-input"
-                    type={showGroqApiKey ? 'text' : 'password'}
-                    value={groqApiKeyInput}
-                    onChange={(e) => setGroqApiKeyInput(e.target.value)}
-                    placeholder={translations[lang]['groqApiKeyPlaceholder']}
-                    className="w-full min-h-[44px] px-4 py-2.5 ltr:pr-12 rtl:pl-12 rounded-lg bg-[#0d0f14] border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 font-mono text-sm transition-all"
-                  />
-                  <button
-                    type="button"
-                    aria-label={showGroqApiKey ? 'Hide Groq API key' : 'Show Groq API key'}
-                    onClick={() => setShowGroqApiKey(!showGroqApiKey)}
-                    className="min-h-[44px] min-w-[44px] absolute ltr:right-1 rtl:left-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 transition-colors cursor-pointer flex items-center justify-center"
-                  >
-                    {showGroqApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              {/* OpenRouter API Key */}
-              <div>
-                <div className="flex items-center justify-between gap-2 mb-1.5">
-                  <label htmlFor="openrouter-api-key-input" className="block text-sm font-medium text-gray-300">
-                    {translations[lang]['openrouterApiKeyLabel']}
-                  </label>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => handlePasteKey('openrouter')}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-gray-800/90 hover:bg-gray-700 text-purple-300 hover:text-purple-200 border border-purple-500/30 hover:border-purple-500/50 shadow-sm transition-all cursor-pointer"
-                      title={translations[lang]['pasteKeyBtn']}
-                    >
-                      <Clipboard className="w-3 h-3 text-purple-400" />
-                      <span>{translations[lang]['pasteKeyBtn']}</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleClearSingleKey('openrouter')}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-red-950/60 hover:bg-red-900/80 text-red-300 hover:text-red-200 border border-red-500/30 transition-all cursor-pointer"
-                      title={translations[lang]['clearKeyBtn']}
-                    >
-                      <Trash2 className="w-3 h-3 text-red-400" />
-                      <span>{translations[lang]['clearKeyBtn']}</span>
-                    </button>
-                    <a
-                      href="https://openrouter.ai/keys"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg bg-gray-800/90 hover:bg-gray-700 text-purple-300 hover:text-purple-200 border border-purple-500/30 hover:border-purple-500/50 shadow-sm transition-all cursor-pointer"
-                    >
-                      <span>{translations[lang]['getKeyBtn']}</span>
-                      <ExternalLink className="w-3 h-3 text-purple-400" />
-                    </a>
-                  </div>
-                </div>
-                <div className="relative">
-                  <input
-                    id="openrouter-api-key-input"
-                    type={showOpenRouterApiKey ? 'text' : 'password'}
-                    value={openRouterApiKeyInput}
-                    onChange={(e) => setOpenRouterApiKeyInput(e.target.value)}
-                    placeholder={translations[lang]['openrouterApiKeyPlaceholder']}
-                    className="w-full min-h-[44px] px-4 py-2.5 ltr:pr-12 rtl:pl-12 rounded-lg bg-[#0d0f14] border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 font-mono text-sm transition-all"
-                  />
-                  <button
-                    type="button"
-                    aria-label={showOpenRouterApiKey ? 'Hide OpenRouter API key' : 'Show OpenRouter API key'}
-                    onClick={() => setShowOpenRouterApiKey(!showOpenRouterApiKey)}
-                    className="min-h-[44px] min-w-[44px] absolute ltr:right-1 rtl:left-1 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 transition-colors cursor-pointer flex items-center justify-center"
-                  >
-                    {showOpenRouterApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <p className="text-xs text-amber-400/90 bg-amber-950/30 border border-amber-500/20 rounded-lg p-2.5 flex items-start gap-2 break-words">
-                <AlertCircle className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
-                <span>{translations[lang]['warningText']}</span>
-              </p>
-
-              {/* Provider Selection Section */}
-              <div className="pt-3 border-t border-gray-800/80 space-y-3">
-                <h3 className="text-sm font-semibold text-gray-200">
-                  {translations[lang]['providerSectionTitle']}
-                </h3>
-
-                {/* Text Provider Dropdown */}
-                <div>
-                  <label htmlFor="text-provider-select" className="block text-xs font-medium text-gray-300 mb-1.5">
-                    {translations[lang]['textProviderLabel']}
-                  </label>
-                  <select
-                    id="text-provider-select"
-                    value={textProviderInput}
-                    onChange={(e) => setTextProviderInput(e.target.value)}
-                    className="w-full min-h-[44px] px-3 py-2 rounded-lg bg-[#0d0f14] border border-gray-700 text-white text-xs sm:text-sm focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 font-sans transition-all cursor-pointer"
-                  >
-                    <option value="gemini">Gemini</option>
-                    <option value="chatgpt">ChatGPT</option>
-                    <option value="groq">Groq</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between pt-2 border-t border-gray-800/80 gap-2">
-              <button
-                type="button"
-                onClick={handleClearApiKey}
-                className="min-h-[44px] px-4 py-2 text-xs font-semibold rounded-lg bg-red-950/50 hover:bg-red-900/70 border border-red-500/40 text-red-300 hover:text-red-200 transition-all cursor-pointer flex items-center justify-center"
-              >
-                {translations[lang]['clearBtn']}
-              </button>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsSettingsOpen(false)}
-                  className="min-h-[44px] px-4 py-2 text-xs font-medium rounded-lg text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-all cursor-pointer flex items-center justify-center"
-                >
-                  {translations[lang]['cancelBtn']}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveApiKey}
-                  className="min-h-[44px] px-5 py-2 text-xs font-semibold rounded-lg text-white bg-gradient-to-r from-purple-600 to-emerald-600 hover:from-purple-500 hover:to-emerald-500 shadow hover:shadow-[0_0_15px_rgba(168,85,247,0.35)] active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center"
-                >
-                  {translations[lang]['saveBtn']}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <SettingsModal isSettingsOpen={isSettingsOpen} handleBackdropClick={handleBackdropClick} lang={lang} setIsSettingsOpen={setIsSettingsOpen} handlePasteKey={handlePasteKey} handleClearSingleKey={handleClearSingleKey} showApiKey={showApiKey} apiKeyInput={apiKeyInput} setApiKeyInput={setApiKeyInput} setShowApiKey={setShowApiKey} showOpenaiApiKey={showOpenaiApiKey} openaiApiKeyInput={openaiApiKeyInput} setOpenaiApiKeyInput={setOpenaiApiKeyInput} setShowOpenaiApiKey={setShowOpenaiApiKey} showGroqApiKey={showGroqApiKey} groqApiKeyInput={groqApiKeyInput} setGroqApiKeyInput={setGroqApiKeyInput} setShowGroqApiKey={setShowGroqApiKey} showOpenRouterApiKey={showOpenRouterApiKey} openRouterApiKeyInput={openRouterApiKeyInput} setOpenRouterApiKeyInput={setOpenRouterApiKeyInput} setShowOpenRouterApiKey={setShowOpenRouterApiKey} textProviderInput={textProviderInput} setTextProviderInput={setTextProviderInput} handleClearApiKey={handleClearApiKey} handleSaveApiKey={handleSaveApiKey} />
     </div>
   );
 }
