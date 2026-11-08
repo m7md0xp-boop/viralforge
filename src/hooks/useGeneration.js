@@ -5,6 +5,8 @@ import { recordGeneration } from '../utils/history';
 import { executeImageGeneration, getImageErrorMessage, getActiveImageProviderId } from '../services/imageGeneration';
 import { parseDataUrl } from '../services/imageRequests';
 import { getImageProvider } from '../config/aiProviders';
+import { CHANNEL_STYLES } from '../services/channelProfile';
+import { AI_SLOT, composeDescription, fillPlaceholders, limitHashtags, placeholderValues } from '../utils/placeholders';
 
 // Adds the hashtags block at the end of the text: "<text>\n\nHashtags:\n#a #b"
 const composeWithHashtags = (text, hashtags, lang) => {
@@ -17,16 +19,18 @@ const composeWithHashtags = (text, hashtags, lang) => {
 
 // Generation, regeneration, export and copy logic for the three sections:
 // video (long YouTube), short (Shorts/TikTok/Reels/X) and live (stream templates).
+// Quick mode and chat studio share one pipeline: chat only replaces the game name with the creator's request.
 // The App passes its state and setters in `ctx`.
 export function useGeneration(ctx) {
   const {
     section,
     selectedPlatforms,
+    limits,
     gameName,
     episode,
     template,
     useCustomTemplate,
-    applyChannelPlaceholders,
+    channelProfile,
     activeTab,
     chatPrompt,
     videoTitles,
@@ -55,8 +59,16 @@ export function useGeneration(ctx) {
     setIsGeneratingImage
   } = ctx;
 
-  const currentSection = () => (activeTab === 'chat' ? 'video' : section);
-  const gameInfo = () => ({ game: gameName.trim() || 'My Game', ep: episode.trim() });
+  const isChat = activeTab === 'chat';
+  // Chat studio: the free-text request is the topic, so the game field is not used
+  const gameInfo = () => ({ game: isChat ? '' : gameName.trim() || 'My Game', ep: isChat ? '' : episode.trim() });
+  const values = () => {
+    const { game, ep } = gameInfo();
+    return placeholderValues({ game, episode: ep, profile: channelProfile });
+  };
+  // Hashtag count follows the selected platforms (3-5 for YouTube). 0 = the platform does not use hashtags.
+  const hashtagRange = () => (limits.hashtagMax === 0 ? [0, 0] : limits.hashtagRecommended);
+  const templateHasSlot = typeof template === 'string' && template.includes(AI_SLOT);
 
   const handleGenerationError = (err) => {
     if (!err) return;
@@ -67,25 +79,28 @@ export function useGeneration(ctx) {
     showToast(getSpecificApiErrorMessage(err, getActiveProviderId()), 'error');
   };
 
-  // Builds the prompt for one section and runs it on the active provider. Returns parsed data or null.
+  // Builds the prompt for the current section and runs it on the active provider. Returns parsed data or null.
   const requestSection = async ({ wantTitles, wantDescription, titleContext = '' }) => {
     const { game, ep } = gameInfo();
-    const sec = currentSection();
-    const isChat = activeTab === 'chat';
-    const schema = buildSchema(sec, { titles: wantTitles, description: wantDescription });
+    const schema = buildSchema(section, { titles: wantTitles, description: wantDescription });
 
-    const prompt = buildSectionPrompt({
-      section: sec,
-      game,
-      ep,
-      lang,
-      template,
-      useCustomTemplate,
-      userText: isChat ? chatPrompt.trim() || 'Create YouTube content' : '',
-      wantTitles,
-      wantDescription,
-      titleContext
-    });
+    const prompt =
+      buildSectionPrompt({
+        section,
+        game,
+        ep,
+        lang,
+        // The AI sees the template with the user's real links, never raw placeholders
+        template: templateHasSlot ? '' : fillPlaceholders(template, values()),
+        useCustomTemplate,
+        templateHasSlot,
+        userText: isChat ? chatPrompt.trim() : '',
+        wantTitles,
+        wantDescription,
+        titleContext,
+        hashtagRange: hashtagRange(),
+        styleHint: CHANNEL_STYLES[channelProfile?.style]?.prompt || ''
+      }) + planRules;
 
     const requestBody = {
       contents: [{ parts: [{ text: prompt }] }],
@@ -95,67 +110,86 @@ export function useGeneration(ctx) {
       }
     };
 
-    const result = await executeTextGeneration(prompt + planRules, requestBody, uiHooks);
+    const result = await executeTextGeneration(prompt, requestBody, uiHooks);
     return result ? result.data : null;
   };
 
-  const thumbnailFor = (game, ep, titles) => {
-    const topic = Array.isArray(titles) && titles.length ? (typeof titles[0] === 'string' ? titles[0] : titles[0].title) : '';
-    return buildThumbnailPrompt({ game, ep, topic });
+  // Final description: template (with the AI text in its slot), real links, then 3-5 unique hashtags
+  const finalDescription = (data) => {
+    const [, maxTags] = hashtagRange();
+    const text = composeDescription({
+      template,
+      aiText: data.description,
+      values: values(),
+      useTemplate: useCustomTemplate && section === 'video'
+    });
+    return composeWithHashtags(text, maxTags > 0 ? limitHashtags(data.hashtags, maxTags) : [], lang);
+  };
+
+  const thumbnailFor = (titles, hasReference = Boolean(uploadedImageBase64)) => {
+    const { game, ep } = gameInfo();
+    const first = Array.isArray(titles) && titles.length ? titles[0] : null;
+    const topic = first ? (typeof first === 'string' ? first : first.title) : isChat ? chatPrompt.trim().slice(0, 200) : '';
+    return buildThumbnailPrompt({ game: game || topic || 'My Game', ep, topic, hasReference });
+  };
+
+  const record = (data) => {
+    const { game, ep } = gameInfo();
+    recordGeneration({
+      contentType: section,
+      platforms: selectedPlatforms,
+      gameName: game || chatPrompt.trim(),
+      episode: ep,
+      hasTitles: Array.isArray(data.videoTitles) && data.videoTitles.length > 0,
+      hasShorts: Array.isArray(data.templates) && data.templates.length > 0,
+      hasDescription: typeof data.description === 'string' && data.description.length > 0
+    });
   };
 
   const handleGenerate = async () => {
-    const sec = currentSection();
-    const isChat = activeTab === 'chat';
-    const wantTitles = isChat || (sec === 'video' && genTitles);
-    const wantDescription = isChat || sec !== 'video' || genDescription;
-    const wantThumbnail = isChat || (sec === 'video' && genThumbnails);
+    const wantTitles = section === 'video' && genTitles;
+    const wantDescription = section !== 'video' || genDescription;
+    const wantThumbnail = section === 'video' && genThumbnails;
 
-    if (sec === 'video' && !wantTitles && !wantDescription && !wantThumbnail) {
-      setVideoTitles([]);
-      setDescription('');
-      setImagePrompt('');
+    if (isChat && !chatPrompt.trim()) {
+      showToast(lang === 'ar' ? 'اكتب طلبك أولاً.' : 'Write your request first.', 'error');
+      return;
+    }
+    if (section === 'video' && !wantTitles && !wantDescription && !wantThumbnail) {
+      showToast(t('toastNothingSelected'), 'error');
       return;
     }
 
-    const { game, ep } = gameInfo();
     setGeneratedImage(null);
+
+    // Thumbnail only: the prompt is built locally, so no API request is needed
+    if (section === 'video' && !wantTitles && !wantDescription) {
+      setVideoTitles([]);
+      setDescription('');
+      setImagePrompt(thumbnailFor(videoTitles));
+      record({});
+      return;
+    }
+
     setIsLoading(true);
     try {
       const data = await requestSection({ wantTitles, wantDescription });
       if (!data) return;
 
-      if (sec === 'live' && !isChat) {
+      if (section === 'live') {
         const templates = Array.isArray(data.templates) ? data.templates : [];
-        setShortsTitles(templates.map((tpl) => applyChannelPlaceholders(tpl)));
+        setShortsTitles(templates.map((tpl) => fillPlaceholders(String(tpl), values())));
       } else {
-        if (wantTitles && Array.isArray(data.videoTitles)) {
-          setVideoTitles(data.videoTitles);
-        } else {
-          setVideoTitles([]);
-        }
-        if (typeof data.description === 'string') {
-          setDescription(applyChannelPlaceholders(composeWithHashtags(data.description, data.hashtags, lang)));
-        } else {
-          setDescription('');
-        }
+        setVideoTitles(wantTitles && Array.isArray(data.videoTitles) ? data.videoTitles : []);
+        setDescription(wantDescription && typeof data.description === 'string' ? finalDescription(data) : '');
         if (wantThumbnail) {
           const titles = wantTitles && Array.isArray(data.videoTitles) ? data.videoTitles : videoTitles;
-          setImagePrompt(thumbnailFor(game, ep, titles));
+          setImagePrompt(thumbnailFor(titles));
         } else {
           setImagePrompt('');
         }
       }
-
-      recordGeneration({
-        contentType: isChat ? 'video' : sec,
-        platforms: selectedPlatforms,
-        gameName: game,
-        episode: ep,
-        hasTitles: Array.isArray(data.videoTitles) && data.videoTitles.length > 0,
-        hasShorts: Array.isArray(data.templates) && data.templates.length > 0,
-        hasDescription: typeof data.description === 'string' && data.description.length > 0
-      });
+      record(data);
     } catch (err) {
       handleGenerationError(err);
     } finally {
@@ -182,7 +216,7 @@ export function useGeneration(ctx) {
     try {
       const data = await requestSection({ wantTitles: false, wantDescription: false });
       if (data && Array.isArray(data.templates)) {
-        setShortsTitles(data.templates.map((tpl) => applyChannelPlaceholders(tpl)));
+        setShortsTitles(data.templates.map((tpl) => fillPlaceholders(String(tpl), values())));
       }
     } catch (err) {
       handleGenerationError(err);
@@ -195,9 +229,7 @@ export function useGeneration(ctx) {
     setIsRegeneratingDescription(true);
     try {
       const data = await requestSection({ wantTitles: false, wantDescription: true });
-      if (data && typeof data.description === 'string') {
-        setDescription(applyChannelPlaceholders(composeWithHashtags(data.description, data.hashtags, lang)));
-      }
+      if (data && typeof data.description === 'string') setDescription(finalDescription(data));
     } catch (err) {
       handleGenerationError(err);
     } finally {
@@ -207,11 +239,12 @@ export function useGeneration(ctx) {
 
   const handleExportAll = () => {
     try {
-      const gName = gameName.trim() || 'game';
+      // Keeps letters (any language), digits, dash and underscore so the file name is valid everywhere
+      const gName = (gameInfo().game || 'content').replace(/[^\p{L}\p{N}_-]+/gu, '_').slice(0, 60) || 'content';
       const exportData = {
-        section: currentSection(),
-        game: gameName.trim() || 'My Game',
-        episode: episode.trim() || '',
+        section,
+        game: gameInfo().game || chatPrompt.trim(),
+        episode: gameInfo().ep,
         videoTitles,
         templates: shortsTitles,
         description,
@@ -223,7 +256,7 @@ export function useGeneration(ctx) {
       const objectURL = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = objectURL;
-      a.download = `youtube_metadata_${gName}.json`;
+      a.download = `viralforge_${gName}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -279,7 +312,7 @@ export function useGeneration(ctx) {
     return copied;
   };
 
-  const thumbnailText = () => imagePrompt || thumbnailFor(gameInfo().game, gameInfo().ep, videoTitles);
+  const thumbnailText = (hasReference) => imagePrompt || thumbnailFor(videoTitles, hasReference);
 
   const handleCopyAndOpenGemini = async () => {
     await copyToClipboard(thumbnailText(), 'image-prompt', translations[lang]['toastGeminiPromptCopied']);
@@ -307,7 +340,7 @@ export function useGeneration(ctx) {
     setIsGeneratingImage(true);
     try {
       const result = await executeImageGeneration({
-        prompt: thumbnailText(),
+        prompt: thumbnailText(Boolean(reference) && provider.supportsReference),
         reference: provider.supportsReference ? reference : null,
         ui: uiHooks
       });

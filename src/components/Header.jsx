@@ -1,8 +1,7 @@
-import { Sun, Moon, Settings, LayoutDashboard, PenSquare, Users } from 'lucide-react';
+import { Sun, Moon, Settings, LayoutDashboard, PenSquare, Users, Tv } from 'lucide-react';
 import { translations } from '../i18n/translations';
-import { USER_CONFIG } from '../config/userConfig';
 
-export default function Header({ lang, theme, toggleTheme, setLang, openSettings, view = 'create', setView, profileName, onSwitchUser }) {
+export default function Header({ lang, theme, toggleTheme, setLang, openSettings, view = 'create', setView, profileName, onSwitchUser, channelName, onEditChannel }) {
   const isAr = lang === 'ar';
   return (
       <header className="border-b border-gray-800 bg-[#151922]/80 backdrop-blur px-4 sm:px-6 py-3.5 sm:py-4 flex items-center justify-between shadow-md">
@@ -11,15 +10,17 @@ export default function Header({ lang, theme, toggleTheme, setLang, openSettings
           <h1 className="text-base sm:text-xl font-bold tracking-wide bg-gradient-to-r from-purple-400 via-fuchsia-400 to-emerald-400 bg-clip-text text-transparent truncate">
             {translations[lang]['appTitle']}
           </h1>
-          <a
-            href={USER_CONFIG.channelUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[11px] sm:text-xs px-2 py-0.5 rounded-full bg-purple-950/60 border border-purple-500/40 text-purple-300 hover:text-purple-200 hover:border-purple-400 transition-all font-medium shrink-0 cursor-pointer shadow-sm"
-            title={`${USER_CONFIG.channelName} YouTube Channel`}
+        {onEditChannel && (
+          <button
+            type="button"
+            onClick={onEditChannel}
+            title={isAr ? 'بيانات قناتي' : 'My channel'}
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-purple-300 transition-colors cursor-pointer max-w-[160px]"
           >
-            by {USER_CONFIG.channelName}
-          </a>
+            <Tv className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{channelName || (isAr ? 'أضف قناتك' : 'Add your channel')}</span>
+          </button>
+        )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {setView && (
@@ -60,7 +61,7 @@ export default function Header({ lang, theme, toggleTheme, setLang, openSettings
             aria-label={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
             onClick={toggleTheme}
             className="min-h-[44px] min-w-[44px] p-2 rounded-lg bg-gray-800/80 border border-gray-700 text-gray-300 hover:text-amber-400 hover:border-amber-500/50 hover:shadow-[0_0_12px_rgba(251,191,36,0.3)] transition-all duration-200 cursor-pointer flex items-center justify-center shrink-0"
-            title={theme === 'dark' ? 'الوضع المضيء' : 'الوضع الداكن'}
+            title={theme === 'dark' ? (isAr ? 'الوضع المضيء' : 'Light mode') : (isAr ? 'الوضع الداكن' : 'Dark mode')}
           >
             {theme === 'dark' ? (
               <Sun className="w-5 h-5 text-amber-400" />

@@ -1,12 +1,14 @@
 {
-  "name": "youtube-creator-assistant",
+  "name": "viralforge",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "test": "node --test \"tests/*.test.js\"",
+    "screenshots": "electron scripts/screenshots.cjs",
     "desktop": "vite build && electron .",
     "dist": "vite build && electron-builder --win"
   },
@@ -28,6 +30,7 @@
   },
   "main": "electron/main.cjs",
   "description": "ViralForge - YouTube, Shorts and Live title & thumbnail assistant",
+  "license": "MIT",
   "build": {
     "appId": "com.viralforge.app",
     "productName": "ViralForge",

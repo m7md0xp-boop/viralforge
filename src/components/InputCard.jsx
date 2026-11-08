@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { translations } from '../i18n/translations';
 import { PRESET_TEMPLATES } from '../config/templates';
-import { USER_CONFIG } from '../config/userConfig';
 import ContentPlanner from './ContentPlanner';
 import ToggleSwitch from './ToggleSwitch';
 import PasteButton from './PasteButton';
-import { Eye, Zap, MessageSquare, Mic, Info, Loader2, FileText, Check, Save, Edit3, ImageIcon, Trash2, UploadCloud, AlertCircle, SlidersHorizontal, X } from 'lucide-react';
+import { Tv, Eye, Zap, MessageSquare, Mic, Info, Loader2, FileText, Check, Save, Edit3, ImageIcon, Trash2, UploadCloud, AlertCircle, SlidersHorizontal, X } from 'lucide-react';
 
-export default function InputCard({ showToast, setActiveTab, activeTab, lang, gameName, setGameName, episode, setEpisode, chatPrompt, setChatPrompt, isRecording, handleToggleVoiceInput, contentType, setContentType, selectedPlatforms, setSelectedPlatforms, handleGenerate, isLoading, saveStatus, isEditing, handleSaveClick, handleToggleEdit, handleSelectPresetTemplate, channelName, handleChannelNameChange, channelLink, handleChannelLinkChange, template, setTemplate, fileInputRef, handleFileChange, handleDragOver, handleDragEnter, handleDragLeave, handleDrop, uploadedImage, isDragging, imageDetails, handleRemoveImage, imageError, handleResetGenerationOptions, genTitles, setGenTitles, genShorts, setGenShorts, genDescription, setGenDescription, genThumbnails, setGenThumbnails, useCustomTemplate, setUseCustomTemplate }) {
+export default function InputCard({ showToast, setActiveTab, activeTab, lang, gameName, setGameName, episode, setEpisode, chatPrompt, setChatPrompt, isRecording, handleToggleVoiceInput, contentType, setContentType, selectedPlatforms, setSelectedPlatforms, handleGenerate, isLoading, saveStatus, isEditing, handleSaveClick, handleToggleEdit, handleSelectPresetTemplate, channelProfile, onEditChannel, template, setTemplate, fileInputRef, handleFileChange, handleDragOver, handleDragEnter, handleDragLeave, handleDrop, uploadedImage, isDragging, imageDetails, handleRemoveImage, imageError, handleResetGenerationOptions, genTitles, setGenTitles, genDescription, setGenDescription, genThumbnails, setGenThumbnails, useCustomTemplate, setUseCustomTemplate }) {
   const [previewPresetId, setPreviewPresetId] = useState('');
   const previewPreset = PRESET_TEMPLATES.find((p) => p.id === previewPresetId) || null;
   return (
@@ -152,7 +151,7 @@ export default function InputCard({ showToast, setActiveTab, activeTab, lang, ga
               {translations[lang]['templateTitle']}
             </h2>
             <span className="text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-400 border border-gray-700">
-              {translations[lang]['placeholdersInfo']} <code className="text-purple-300">{"{game}"}</code>, <code className="text-emerald-300">{"{episode}"}</code>, <code className="text-blue-300">{"{channel_name}"}</code>, <code className="text-amber-300">{"{channel_link}"}</code>
+              {translations[lang]['placeholdersInfo']} <code className="text-purple-300">{"{game}"}</code>, <code className="text-emerald-300">{"{episode}"}</code>, <code className="text-blue-300">{"{channel_name}"}</code>, <code className="text-amber-300">{"{channel_link}"}</code>, <code className="text-amber-300">{"{subscribe_link}"}</code>, <code className="text-amber-300">{"{linktree_link}"}</code>, <code className="text-amber-300">{"{discord_link}"}</code>, <code className="text-fuchsia-300">{"{ai_description}"}</code>
             </span>
           </div>
 
@@ -232,34 +231,26 @@ export default function InputCard({ showToast, setActiveTab, activeTab, lang, ga
           </div>
         )}
 
-        {/* Channel Name and URL Inputs */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-          <div className="space-y-1">
-            <label htmlFor="channel-name-field" className="block text-xs font-semibold text-gray-300">
-              {translations[lang]['channelNameLabel']}
-            </label>
-            <input
-              id="channel-name-field"
-              type="text"
-              value={channelName}
-              onChange={handleChannelNameChange}
-              placeholder={USER_CONFIG.channelName}
-              className="w-full min-h-[38px] px-3 py-1.5 rounded-lg bg-[#0d0f14] border border-gray-700 text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
-            />
+        {/* The user's channel (filled on the welcome screen). Its values fill the link placeholders. */}
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-800 bg-[#0d0f14]/60 px-3 py-2.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <Tv className="w-4 h-4 text-purple-400 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-gray-200 truncate">
+                {channelProfile?.channelName || (lang === 'ar' ? 'لم تُضف قناتك بعد' : 'No channel added yet')}
+              </p>
+              <p className="text-[11px] text-gray-500 truncate" dir="ltr">
+                {channelProfile?.channelUrl || (lang === 'ar' ? 'أضف روابطك لتُعبّأ في الأوصاف تلقائياً' : 'Add your links to fill them into descriptions')}
+              </p>
+            </div>
           </div>
-          <div className="space-y-1">
-            <label htmlFor="channel-link-field" className="block text-xs font-semibold text-gray-300">
-              {translations[lang]['channelUrlLabel']}
-            </label>
-            <input
-              id="channel-link-field"
-              type="text"
-              value={channelLink}
-              onChange={handleChannelLinkChange}
-              placeholder={USER_CONFIG.channelUrl}
-              className="w-full min-h-[38px] px-3 py-1.5 rounded-lg bg-[#0d0f14] border border-gray-700 text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
-            />
-          </div>
+          <button
+            type="button"
+            onClick={onEditChannel}
+            className="min-h-[36px] shrink-0 px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-700 bg-gray-800/80 text-gray-300 hover:text-purple-300 hover:border-purple-500/50 cursor-pointer"
+          >
+            {lang === 'ar' ? 'تعديل بيانات القناة' : 'Edit channel'}
+          </button>
         </div>
 
         <div className="relative">
@@ -395,7 +386,7 @@ export default function InputCard({ showToast, setActiveTab, activeTab, lang, ga
             <span>{translations[lang]['resetOptionsBtn']}</span>
           </button>
         </div>
-        {(contentType === 'video' || activeTab === 'chat') ? (
+        {contentType === 'video' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3 pt-1">
           <ToggleSwitch
             label={translations[lang]['toggleTitles']}
