@@ -1,7 +1,8 @@
 import { getSecret } from './secrets';
 import { providerFetch } from './aiTransport';
 import { AI_PROVIDERS, getProvider, PROVIDER_IDS } from '../config/aiProviders';
-import { buildJsonRequest, readJsonResponse, parseJsonLoose } from './providerRequests';
+import { buildJsonRequest, readJsonResponse, parseJsonLoose, normalizeAiResponse } from './providerRequests';
+import { translate } from '../i18n/translate';
 import { schemaExample } from '../config/prompts';
 
 // One request (or one Gemini retry chain) may take up to this long. Long prompts are slow on every provider.
@@ -75,7 +76,9 @@ export const callGeminiWithRetry = async (apiKey, requestBody) => {
           try {
             const errJson = await res.json();
             if (errJson?.error?.message) errMsg = errJson.error.message;
-          } catch {}
+          } catch {
+            // Body is not JSON: keep the status text
+          }
           const err = new Error(errMsg);
           err.status = res.status;
           throw err;
@@ -112,7 +115,9 @@ const callJsonProvider = async (provider, key, prompt, signal) => {
     try {
       const errJson = await res.json();
       message = errJson?.error?.message || errJson?.message || message;
-    } catch {}
+    } catch {
+      // Body is not JSON: keep the status text
+    }
     const err = new Error(message);
     err.status = res.status;
     throw err;
@@ -124,48 +129,6 @@ const callJsonProvider = async (provider, key, prompt, signal) => {
   return normalizeAiResponse(parseJsonLoose(content));
 };
 
-// Normalizes AI output so the UI always gets the expected shapes
-export const normalizeAiResponse = (parsed) => {
-  if (!parsed || typeof parsed !== 'object') return {};
-  const result = { ...parsed };
-
-  const rawTitles = result.videoTitles || result.video_titles || result.titles;
-  if (Array.isArray(rawTitles)) {
-    result.videoTitles = rawTitles.map((item) => {
-      if (typeof item === 'string') return { title: item, score: 85, seo: 80, ctr: 75 };
-      return {
-        title: item?.title || item?.name || '',
-        score: Number(item?.score) || 85,
-        seo: Number(item?.seo) || 80,
-        ctr: Number(item?.ctr) || 75
-      };
-    });
-  }
-
-  const rawHashtags = result.hashtags;
-  if (Array.isArray(rawHashtags)) {
-    result.hashtags = rawHashtags
-      .map((h) => String(h || '').trim())
-      .filter(Boolean)
-      .map((h) => (h.startsWith('#') ? h : `#${h}`));
-  } else if (typeof rawHashtags === 'string') {
-    result.hashtags = rawHashtags.split(/\s+/).filter(Boolean).map((h) => (h.startsWith('#') ? h : `#${h}`));
-  }
-
-  const rawDescription = result.description ?? result.youtube_description ?? result.desc;
-  if (typeof rawDescription === 'string') result.description = rawDescription;
-  else if (Array.isArray(rawDescription)) result.description = rawDescription.join('\n\n');
-
-  // Lists of plain strings (live titles, Shorts titles): some models return { title } or { text } objects
-  for (const key of ['templates', 'shortTitles']) {
-    if (Array.isArray(result[key])) {
-      result[key] = result[key].map((t) => (typeof t === 'string' ? t : t?.text || t?.title || ''));
-    }
-  }
-
-  return result;
-};
-
 // Runs the request on the active provider.
 // `geminiRequestBody` carries the response schema; other providers get the same schema as a JSON example.
 // Returns { data, provider } or null when no key is saved. Errors are thrown as { provider, error }.
@@ -175,7 +138,7 @@ export const executeTextGeneration = async (prompt, geminiRequestBody, ui) => {
   const key = getSecret(provider.keyName).trim();
 
   if (!key) {
-    ui.showToast(ui.t('toastProviderKeyRequired').replace('{provider}', provider.label.en), 'error');
+    ui.showToast(ui.t('settings.keyRequired', { provider: provider.label.en }), 'error');
     return null;
   }
 
@@ -203,27 +166,28 @@ export const executeTextGeneration = async (prompt, geminiRequestBody, ui) => {
   }
 };
 
-// Friendly messages for every provider. Gemini-specific wording is kept where it helps.
-export const getSpecificApiErrorMessage = (err, provider = 'gemini') => {
-  if (!err) return 'Unknown error occurred.';
-  if (err.name === 'AbortError') {
-    return `The AI request timed out (${Math.round(AI_REQUEST_TIMEOUT_MS / 1000)}s). Try again.`;
-  }
+// Friendly, translated message for a failed text request. `t` is the UI translator (English when omitted).
+export const getSpecificApiErrorMessage = (err, provider = 'gemini', t = (key, vars) => translate('en', key, vars)) => {
+  if (!err) return t('errors.unknown');
+  if (err.name === 'AbortError') return t('errors.timeout', { seconds: Math.round(AI_REQUEST_TIMEOUT_MS / 1000) });
   const name = getProvider(provider).label.en;
-  const status = err?.status || (typeof err === 'number' ? err : null) || (err?.message && err.message.match(/\b(401|402|403|404|429|500|503)\b/)?.[1]);
+  // HTTP status from the error, or found in its message (some providers only put it there)
+  const status = Number(
+    err?.status || (typeof err === 'number' ? err : 0) || err?.message?.match(/\b(401|402|403|404|429|500|503)\b/)?.[1] || 0
+  );
   const message = err?.message || (typeof err === 'string' ? err : '');
   const lower = message.toLowerCase();
 
-  if (status == 401 || status == 403 || /api[_ ]?key|unauthori[sz]ed|invalid.*key|permission/.test(lower)) {
-    return `${name} API key is invalid or not allowed.`;
+  if (status === 401 || status === 403 || /api[_ ]?key|unauthori[sz]ed|invalid.*key|permission/.test(lower)) {
+    return t('errors.invalidKey', { provider: name });
   }
-  if (status == 402 || lower.includes('insufficient') || lower.includes('balance')) {
-    return `${name}: insufficient balance or credits.`;
+  if (status === 402 || lower.includes('insufficient') || lower.includes('balance')) {
+    return t('errors.noCredit', { provider: name });
   }
-  if (status == 429 || lower.includes('quota') || lower.includes('rate limit') || lower.includes('resource_exhausted')) {
-    return `${name} quota exceeded or rate limited. Try again later.`;
+  if (status === 429 || lower.includes('quota') || lower.includes('rate limit') || lower.includes('resource_exhausted')) {
+    return t('errors.rateLimited', { provider: name });
   }
-  return message || `${name} error (${status || 'Network error'})`;
+  return message ? t('errors.generic', { provider: name, message }) : t('errors.network', { provider: name, status: status || '-' });
 };
 
 export { AI_PROVIDERS };

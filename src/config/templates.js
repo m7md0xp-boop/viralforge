@@ -4,6 +4,7 @@
 //   {channel_name} {channel_link} {subscribe_link} {linktree_link} {discord_link}  from the channel profile
 // A line whose link placeholder is empty is removed, so keep each label and its link on the same line.
 // Hashtags are added after the template by the app (3-5 for YouTube), so templates should not contain them.
+// Preset names are translated in src/i18n/locales ("presets.<id>").
 export const STORAGE_KEY = 'yt_creator_template';
 
 export const DEFAULT_TEMPLATE = `{ai_description}
@@ -22,10 +23,6 @@ export const DEFAULT_TEMPLATE = `{ai_description}
 export const PRESET_TEMPLATES = [
   {
     id: 'gaming-challenge-ar',
-    name: {
-      ar: 'قالب تحديات الألعاب',
-      en: 'Gaming challenges (Arabic)'
-    },
     text: `{ai_description}
 
 🔥 الحلقة {episode} من {game}، لا تفوّتون التحدي القادم!
@@ -38,10 +35,6 @@ export const PRESET_TEMPLATES = [
   },
   {
     id: 'gameplay-walkthrough',
-    name: {
-      ar: 'قالب تختيم ومغامرات ألعاب',
-      en: 'Gameplay & Walkthrough (Arabic)'
-    },
     text: `🎮 مرحباً بكم في الحلقة {episode} من تختيم لعبة {game}!
 
 {ai_description}
@@ -55,10 +48,6 @@ export const PRESET_TEMPLATES = [
   },
   {
     id: 'default-template',
-    name: {
-      ar: 'القالب الإنجليزي الافتراضي',
-      en: 'Default English Template'
-    },
     text: DEFAULT_TEMPLATE
   }
 ];

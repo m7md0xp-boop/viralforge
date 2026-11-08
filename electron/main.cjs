@@ -57,7 +57,9 @@ function writeFileAtomic(file, data) {
   } catch (err) {
     try {
       fs.rmSync(tmp, { force: true });
-    } catch {}
+    } catch {
+      // Nothing to clean up
+    }
     throw new Error(`Could not save ${path.basename(file)}: ${err.message}`);
   }
 }
@@ -76,7 +78,9 @@ function readJsonFile(file, fallback) {
   } catch (err) {
     try {
       fs.renameSync(file, `${file}.corrupt-${Date.now()}`);
-    } catch {}
+    } catch {
+      // Could not move it: it will be overwritten by the next save
+    }
     console.warn(`Corrupted ${path.basename(file)} was moved aside`, err);
     return fallback;
   }
@@ -87,7 +91,9 @@ function openExternalSafe(url) {
   try {
     const { protocol } = new URL(url);
     if (protocol === 'https:' || protocol === 'http:') shell.openExternal(url);
-  } catch {}
+  } catch {
+    // Not a valid URL: ignored
+  }
 }
 
 // Serve the built app from app:// so module scripts load and fetch() to external APIs works
@@ -368,7 +374,7 @@ function openExternalOnly(win) {
   win.webContents.on('will-attach-webview', (event) => event.preventDefault());
 }
 
-function baseWebPreferences(sess) {
+function baseWebPreferences() {
   return {
     preload: path.join(__dirname, 'preload.cjs'),
     contextIsolation: true,
@@ -391,7 +397,7 @@ function createProfileWindow(profileId) {
     title: 'ViralForge',
     backgroundColor: '#07090e',
     autoHideMenuBar: true,
-    webPreferences: { ...baseWebPreferences(sess), partition: partitionFor(profileId) }
+    webPreferences: { ...baseWebPreferences(), partition: partitionFor(profileId) }
   });
   const wcId = win.webContents.id;
   windowProfile.set(wcId, profileId);
@@ -416,7 +422,7 @@ function createPickerWindow() {
     title: 'ViralForge',
     backgroundColor: '#07090e',
     autoHideMenuBar: true,
-    webPreferences: baseWebPreferences(sess)
+    webPreferences: baseWebPreferences()
   });
   openExternalOnly(win);
   win.loadURL('app://app/index.html?picker=1');

@@ -56,3 +56,45 @@ export function parseJsonLoose(raw) {
     throw new Error('The AI reply was not valid JSON');
   }
 }
+
+// Normalizes AI output so the UI always gets the expected shapes (titles as objects, hashtags with #, ...)
+export const normalizeAiResponse = (parsed) => {
+  if (!parsed || typeof parsed !== 'object') return {};
+  const result = { ...parsed };
+
+  const rawTitles = result.videoTitles || result.video_titles || result.titles;
+  if (Array.isArray(rawTitles)) {
+    result.videoTitles = rawTitles.map((item) => {
+      if (typeof item === 'string') return { title: item, score: 85, seo: 80, ctr: 75 };
+      return {
+        title: item?.title || item?.name || '',
+        score: Number(item?.score) || 85,
+        seo: Number(item?.seo) || 80,
+        ctr: Number(item?.ctr) || 75
+      };
+    });
+  }
+
+  const rawHashtags = result.hashtags;
+  if (Array.isArray(rawHashtags)) {
+    result.hashtags = rawHashtags
+      .map((h) => String(h || '').trim())
+      .filter(Boolean)
+      .map((h) => (h.startsWith('#') ? h : `#${h}`));
+  } else if (typeof rawHashtags === 'string') {
+    result.hashtags = rawHashtags.split(/\s+/).filter(Boolean).map((h) => (h.startsWith('#') ? h : `#${h}`));
+  }
+
+  const rawDescription = result.description ?? result.youtube_description ?? result.desc;
+  if (typeof rawDescription === 'string') result.description = rawDescription;
+  else if (Array.isArray(rawDescription)) result.description = rawDescription.join('\n\n');
+
+  // Lists of plain strings (live titles, Shorts titles): some models return { title } or { text } objects
+  for (const key of ['templates', 'shortTitles']) {
+    if (Array.isArray(result[key])) {
+      result[key] = result[key].map((t) => (typeof t === 'string' ? t : t?.text || t?.title || ''));
+    }
+  }
+
+  return result;
+};

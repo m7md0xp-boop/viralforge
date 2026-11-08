@@ -1,47 +1,7 @@
 import { useState } from 'react';
 import { Sparkles, X, Check } from 'lucide-react';
-import { CHANNEL_STYLES, normalizeUrl } from '../services/channelProfile';
-
-const T = {
-  ar: {
-    welcomeTitle: 'أهلاً بك في ViralForge',
-    welcomeText: 'عرّفنا على قناتك مرة واحدة. نستخدم هذه البيانات لتعبئة روابطك في الأوصاف تلقائياً، وتبقى محفوظة على جهازك فقط.',
-    editTitle: 'بيانات قناتي',
-    editText: 'تُستخدم هذه البيانات لتعبئة متغيرات القالب مثل {channel_link} و {discord_link}.',
-    channelName: 'اسم القناة',
-    channelNamePh: 'مثال: قناة الألعاب',
-    channelUrl: 'رابط القناة',
-    linktreeUrl: 'رابط حساباتك (Linktree أو غيره)',
-    discordUrl: 'رابط سيرفر الديسكورد',
-    optional: 'اختياري',
-    style: 'أسلوب الكتابة',
-    invalidUrl: 'الرابط غير صالح. استخدم رابطاً يبدأ بـ https://',
-    nameRequired: 'اكتب اسم القناة.',
-    start: 'ابدأ',
-    save: 'حفظ',
-    skip: 'تخطّي الآن',
-    close: 'إغلاق'
-  },
-  en: {
-    welcomeTitle: 'Welcome to ViralForge',
-    welcomeText: 'Tell us about your channel once. We use it to fill your links into descriptions, and it stays on this device only.',
-    editTitle: 'My channel',
-    editText: 'These values fill template placeholders such as {channel_link} and {discord_link}.',
-    channelName: 'Channel name',
-    channelNamePh: 'e.g. My Gaming Channel',
-    channelUrl: 'Channel link',
-    linktreeUrl: 'All your links (Linktree or similar)',
-    discordUrl: 'Discord server link',
-    optional: 'optional',
-    style: 'Writing style',
-    invalidUrl: 'This link is not valid. Use a link that starts with https://',
-    nameRequired: 'Enter your channel name.',
-    start: 'Get started',
-    save: 'Save',
-    skip: 'Skip for now',
-    close: 'Close'
-  }
-};
+import { CHANNEL_STYLES, normalizeUrl } from '../../services/channelProfile';
+import { useI18n } from '../../i18n/useI18n';
 
 const URL_FIELDS = [
   { key: 'channelUrl', placeholder: 'https://www.youtube.com/@yourchannel' },
@@ -54,9 +14,8 @@ const inputClass =
 
 // Welcome screen (mode "welcome") for a new user, and the same form to edit the channel later (mode "edit").
 // `onSave(profile)` receives the raw values; the caller sanitizes and stores them.
-export default function Onboarding({ lang, mode = 'welcome', initial, onSave, onClose }) {
-  const isAr = lang === 'ar';
-  const tx = T[isAr ? 'ar' : 'en'];
+export default function Onboarding({ mode = 'welcome', initial, onSave, onClose }) {
+  const { t, dir } = useI18n();
   const [form, setForm] = useState(() => ({
     channelName: initial?.channelName || '',
     channelUrl: initial?.channelUrl || '',
@@ -74,9 +33,9 @@ export default function Onboarding({ lang, mode = 'welcome', initial, onSave, on
   const submit = (e) => {
     e.preventDefault();
     const next = {};
-    if (!form.channelName.trim()) next.channelName = tx.nameRequired;
+    if (!form.channelName.trim()) next.channelName = t('onboarding.nameRequired');
     for (const { key } of URL_FIELDS) {
-      if (form[key].trim() && !normalizeUrl(form[key])) next[key] = tx.invalidUrl;
+      if (form[key].trim() && !normalizeUrl(form[key])) next[key] = t('onboarding.invalidUrl');
     }
     setErrors(next);
     if (Object.keys(next).length) return;
@@ -95,7 +54,7 @@ export default function Onboarding({ lang, mode = 'welcome', initial, onSave, on
       <form
         onSubmit={submit}
         noValidate
-        dir={isAr ? 'rtl' : 'ltr'}
+        dir={dir}
         className="w-full max-w-lg max-h-[92vh] overflow-y-auto bg-[#151922] border border-gray-800 rounded-2xl p-5 sm:p-7 shadow-2xl space-y-5"
       >
         <div className="flex items-start justify-between gap-3">
@@ -105,16 +64,16 @@ export default function Onboarding({ lang, mode = 'welcome', initial, onSave, on
             </div>
             <div>
               <h2 id="onboarding-title" className="text-lg font-bold text-gray-100">
-                {isWelcome ? tx.welcomeTitle : tx.editTitle}
+                {isWelcome ? t('onboarding.welcomeTitle') : t('onboarding.editTitle')}
               </h2>
-              <p className="text-xs text-gray-400 mt-1 leading-relaxed">{isWelcome ? tx.welcomeText : tx.editText}</p>
+              <p className="text-xs text-gray-400 mt-1 leading-relaxed">{isWelcome ? t('onboarding.welcomeText') : t('onboarding.editText')}</p>
             </div>
           </div>
           {!isWelcome && (
             <button
               type="button"
               onClick={onClose}
-              aria-label={tx.close}
+              aria-label={t('common.close')}
               className="p-2 rounded-lg text-gray-400 hover:text-gray-100 hover:bg-gray-800 cursor-pointer"
             >
               <X className="w-4 h-4" />
@@ -124,14 +83,14 @@ export default function Onboarding({ lang, mode = 'welcome', initial, onSave, on
 
         <div className="space-y-1.5">
           <label htmlFor="ob-channelName" className="text-sm font-medium text-gray-300">
-            {tx.channelName}
+            {t('onboarding.channelName')}
           </label>
           <input
             id="ob-channelName"
             value={form.channelName}
             onChange={set('channelName')}
             maxLength={80}
-            placeholder={tx.channelNamePh}
+            placeholder={t('onboarding.channelNamePlaceholder')}
             className={inputClass}
             autoFocus
           />
@@ -141,7 +100,7 @@ export default function Onboarding({ lang, mode = 'welcome', initial, onSave, on
         {URL_FIELDS.map(({ key, placeholder }) => (
           <div key={key} className="space-y-1.5">
             <label htmlFor={`ob-${key}`} className="text-sm font-medium text-gray-300">
-              {tx[key]} <span className="text-xs text-gray-500">({tx.optional})</span>
+              {t(`onboarding.${key}`)} <span className="text-xs text-gray-500">({t('common.optional')})</span>
             </label>
             <input
               id={`ob-${key}`}
@@ -158,9 +117,9 @@ export default function Onboarding({ lang, mode = 'welcome', initial, onSave, on
         ))}
 
         <fieldset className="space-y-2">
-          <legend className="text-sm font-medium text-gray-300 mb-2">{tx.style}</legend>
+          <legend className="text-sm font-medium text-gray-300 mb-2">{t('onboarding.style')}</legend>
           <div className="grid grid-cols-2 gap-2">
-            {Object.entries(CHANNEL_STYLES).map(([id, s]) => {
+            {Object.keys(CHANNEL_STYLES).map((id) => {
               const active = form.style === id;
               return (
                 <button
@@ -175,7 +134,7 @@ export default function Onboarding({ lang, mode = 'welcome', initial, onSave, on
                   }`}
                 >
                   {active && <Check className="w-4 h-4" />}
-                  {s.label[isAr ? 'ar' : 'en']}
+                  {t(`styles.${id}`)}
                 </button>
               );
             })}
@@ -189,14 +148,14 @@ export default function Onboarding({ lang, mode = 'welcome', initial, onSave, on
               onClick={() => onSave({ ...form, onboarded: true })}
               className="min-h-[44px] flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-gray-800/80 border border-gray-700 text-gray-300 hover:bg-gray-800 cursor-pointer"
             >
-              {tx.skip}
+              {t('onboarding.skip')}
             </button>
           )}
           <button
             type="submit"
             className="min-h-[44px] flex-1 px-4 py-2.5 rounded-lg text-sm font-semibold text-white bg-gradient-to-r from-purple-600 to-emerald-600 hover:from-purple-500 hover:to-emerald-500 cursor-pointer"
           >
-            {isWelcome ? tx.start : tx.save}
+            {isWelcome ? t('onboarding.start') : t('common.save')}
           </button>
         </div>
       </form>
