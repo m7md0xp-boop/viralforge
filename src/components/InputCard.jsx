@@ -2,17 +2,25 @@ import { useState } from 'react';
 import { translations } from '../i18n/translations';
 import { PRESET_TEMPLATES } from '../config/templates';
 import ContentPlanner from './ContentPlanner';
+import { STUDIOS } from '../config/studios';
 import ToggleSwitch from './ToggleSwitch';
 import PasteButton from './PasteButton';
 import { Tv, Eye, Zap, MessageSquare, Mic, Info, Loader2, FileText, Check, Save, Edit3, ImageIcon, Trash2, UploadCloud, AlertCircle, SlidersHorizontal, X } from 'lucide-react';
 
-export default function InputCard({ showToast, setActiveTab, activeTab, lang, gameName, setGameName, episode, setEpisode, chatPrompt, setChatPrompt, isRecording, handleToggleVoiceInput, contentType, setContentType, selectedPlatforms, setSelectedPlatforms, handleGenerate, isLoading, saveStatus, isEditing, handleSaveClick, handleToggleEdit, handleSelectPresetTemplate, channelProfile, onEditChannel, template, setTemplate, fileInputRef, handleFileChange, handleDragOver, handleDragEnter, handleDragLeave, handleDrop, uploadedImage, isDragging, imageDetails, handleRemoveImage, imageError, handleResetGenerationOptions, genTitles, setGenTitles, genDescription, setGenDescription, genThumbnails, setGenThumbnails, useCustomTemplate, setUseCustomTemplate }) {
+export default function InputCard({ showToast, setActiveTab, activeTab, lang, gameName, setGameName, episode, setEpisode, chatPrompt, setChatPrompt, isRecording, handleToggleVoiceInput, voiceSupported = false, contentType, selectedPlatforms, setSelectedPlatforms, handleGenerate, isLoading, saveStatus, isEditing, handleSaveClick, handleToggleEdit, handleSelectPresetTemplate, channelProfile, onEditChannel, template, setTemplate, fileInputRef, handleFileChange, handleDragOver, handleDragEnter, handleDragLeave, handleDrop, uploadedImage, isDragging, imageDetails, handleRemoveImage, imageError, handleResetGenerationOptions, genTitles, setGenTitles, genDescription, setGenDescription, genThumbnails, setGenThumbnails, useCustomTemplate, setUseCustomTemplate }) {
   const [previewPresetId, setPreviewPresetId] = useState('');
   const previewPreset = PRESET_TEMPLATES.find((p) => p.id === previewPresetId) || null;
+  const studio = STUDIOS[contentType] || STUDIOS.video;
+  const l = lang === 'ar' ? 'ar' : 'en';
   return (
     <>
-      {/* Input Card with Tabbed Interface */}
+      {/* Input card of the open studio */}
       <div className="bg-[#151922] border border-gray-800 rounded-xl p-4 sm:p-6 shadow-xl space-y-5">
+        <div>
+          <h2 className="text-base sm:text-lg font-bold text-gray-100">{studio.label[l]}</h2>
+          <p className="text-xs text-gray-400 mt-1">{studio.blurb[l]}</p>
+        </div>
+
         {/* Tab Navigation */}
         <div className="flex items-center gap-2 border-b border-gray-800 pb-3">
           <button
@@ -65,7 +73,7 @@ export default function InputCard({ showToast, setActiveTab, activeTab, lang, ga
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <label htmlFor="episode-number" className="block text-sm font-medium text-gray-300">
-                  {translations[lang]['episodeLabel']}
+                  {studio.detailsLabel[l]}
                 </label>
                 <PasteButton lang={lang} onPaste={setEpisode} onError={(msg) => showToast?.(msg, 'error')} />
               </div>
@@ -74,7 +82,7 @@ export default function InputCard({ showToast, setActiveTab, activeTab, lang, ga
                 type="text"
                 value={episode}
                 onChange={(e) => setEpisode(e.target.value)}
-                placeholder={translations[lang]['episodePlaceholder']}
+                placeholder={studio.detailsPlaceholder[l]}
                 className="w-full min-h-[44px] px-4 py-2.5 rounded-lg bg-[#0d0f14] border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all text-sm sm:text-base"
               />
             </div>
@@ -92,6 +100,8 @@ export default function InputCard({ showToast, setActiveTab, activeTab, lang, ga
                 placeholder={translations[lang]['chatStudioPlaceholder']}
                 className="w-full p-4 pb-12 rounded-lg bg-[#0d0f14] border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 text-sm transition-all resize-y"
               />
+              {/* Hidden where speech recognition does not work (desktop app, some browsers) */}
+              {voiceSupported && (
               <button
                 type="button"
                 aria-label={isRecording ? 'إيقاف التسجيل الصوتي' : 'إدخال صوتي'}
@@ -105,6 +115,7 @@ export default function InputCard({ showToast, setActiveTab, activeTab, lang, ga
               >
                 <Mic className={`w-4 h-4 ${isRecording ? 'animate-bounce text-white' : 'text-purple-400'}`} />
               </button>
+              )}
             </div>
             <p className="text-xs text-gray-400 leading-relaxed flex items-start gap-1.5">
               <Info className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
@@ -116,7 +127,6 @@ export default function InputCard({ showToast, setActiveTab, activeTab, lang, ga
         <ContentPlanner
           lang={lang}
           contentType={contentType}
-          setContentType={setContentType}
           selectedPlatforms={selectedPlatforms}
           setSelectedPlatforms={setSelectedPlatforms}
         />
@@ -142,6 +152,9 @@ export default function InputCard({ showToast, setActiveTab, activeTab, lang, ga
         </button>
       </div>
 
+      {/* Long-video tools: description template, reference photo, generation options */}
+      {contentType === 'video' && (
+      <>
       {/* Template Manager */}
       <div className="bg-[#151922] border border-gray-800 rounded-xl p-4 sm:p-6 shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -386,7 +399,6 @@ export default function InputCard({ showToast, setActiveTab, activeTab, lang, ga
             <span>{translations[lang]['resetOptionsBtn']}</span>
           </button>
         </div>
-        {contentType === 'video' ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3 pt-1">
           <ToggleSwitch
             label={translations[lang]['toggleTitles']}
@@ -407,13 +419,6 @@ export default function InputCard({ showToast, setActiveTab, activeTab, lang, ga
             onChange={(val) => setGenThumbnails(val)}
           />
         </div>
-        ) : (
-          <p className="text-xs text-gray-400 pt-1">
-            {contentType === 'short'
-              ? (lang === 'ar' ? 'القسم القصير يولّد وصفاً موجزاً وهاشتاقات رائجة تلقائياً.' : 'Short videos generate a brief caption and trending hashtags automatically.')
-              : (lang === 'ar' ? 'قسم البث المباشر يولّد قوالب عناوين وأوصاف مختصرة تلقائياً.' : 'Live streams generate short, catchy stream templates automatically.')}
-          </p>
-        )}
 
         {/* Template Toggle (iOS-style switch with explanatory note) */}
         <div className="pt-2 border-t border-gray-800/80">
@@ -425,7 +430,8 @@ export default function InputCard({ showToast, setActiveTab, activeTab, lang, ga
           />
         </div>
       </div>
-
+      </>
+      )}
     </>
   );
 }

@@ -15,6 +15,11 @@ const titleItem = {
   required: ['title', 'score', 'seo', 'ctr']
 };
 const hashtagsProp = { type: 'ARRAY', items: { type: 'STRING' } };
+const streamMetaProp = {
+  type: 'OBJECT',
+  properties: { category: { type: 'STRING' }, tags: { type: 'ARRAY', items: { type: 'STRING' } } },
+  required: ['category', 'tags']
+};
 
 export const SECTION_SCHEMAS = {
   // Long videos (YouTube): comprehensive titles, detailed description, trending hashtags
@@ -26,31 +31,37 @@ export const SECTION_SCHEMAS = {
     },
     required: ['videoTitles', 'description', 'hashtags']
   },
-  // Shorts, TikTok, Reels, X: very short description + trending hashtags
+  // Shorts, TikTok, Reels, X: YouTube Shorts titles + very short caption + trending hashtags
   short: {
     properties: {
+      shortTitles: { type: 'ARRAY', items: { type: 'STRING' } },
       description: { type: 'STRING' },
       hashtags: hashtagsProp
     },
-    required: ['description', 'hashtags']
+    required: ['shortTitles', 'description', 'hashtags']
   },
-  // Live streams (Twitch, Kick, YouTube Live, TikTok Live): short catchy stream templates
+  // Live streams (Twitch, Kick, YouTube Live, TikTok Live): short stream titles,
+  // plus a category and tags for Twitch and Kick
   live: {
     properties: {
-      templates: { type: 'ARRAY', items: { type: 'STRING' } }
+      templates: { type: 'ARRAY', items: { type: 'STRING' } },
+      twitch: streamMetaProp,
+      kick: streamMetaProp
     },
-    required: ['templates']
+    required: ['templates', 'twitch', 'kick']
   }
 };
 
 // Builds the schema for the parts a request needs (e.g. video without titles = description + hashtags only).
-export function buildSchema(section, { titles = true, description = true } = {}) {
+// `streamPlatforms`: live only, the keys of the stream-meta blocks to include ('twitch', 'kick').
+export function buildSchema(section, { titles = true, description = true, streamPlatforms = [] } = {}) {
   const base = SECTION_SCHEMAS[section] || SECTION_SCHEMAS.video;
   const properties = {};
   const required = [];
   for (const key of Object.keys(base.properties)) {
-    if (key === 'videoTitles' && !titles) continue;
+    if ((key === 'videoTitles' || key === 'shortTitles') && !titles) continue;
     if (key === 'description' && !description) continue;
+    if ((key === 'twitch' || key === 'kick') && !streamPlatforms.includes(key)) continue;
     properties[key] = base.properties[key];
     required.push(key);
   }
@@ -123,29 +134,66 @@ export function buildSectionPrompt({
   wantDescription,
   titleContext,
   hashtagRange = DEFAULT_HASHTAG_RANGE,
-  styleHint = ''
+  styleHint = '',
+  // Shorts and live: the second input field ("what happens in the clip" / "stream idea")
+  details = '',
+  // Strictest title and caption lengths of the selected platforms
+  titleMax = 100,
+  captionMax = 5000,
+  // Live: stream-meta blocks to fill ('twitch', 'kick')
+  streamPlatforms = []
 }) {
   const topic = game || "the topic in the creator's request";
   const epPart = ep ? `, episode: ${ep}` : '';
   const langName = LANG_NAME[lang] || 'Arabic';
-  const intro = requestLine(userText) + styleLine(styleHint);
+  const intro = requestLine(userText) + styleLine(styleHint) + (details ? `Details: ${details}\n` : '');
   const noTags = !hashtagRange || hashtagRange[1] === 0;
 
   if (section === 'short') {
+    const parts = [];
+    if (wantTitles) {
+      parts.push(
+        `"shortTitles": 3 YouTube Shorts titles, each at most ${Math.min(titleMax, 100)} characters (aim for under 60). ` +
+          'Hook in the first words, no hashtags in the title, all three distinct.' +
+          (titleContext ? ` Avoid repeating these: ${titleContext}.` : '')
+      );
+    }
+    if (wantDescription) {
+      parts.push(
+        `"description": ONE very short, punchy caption (1-2 sentences) with a hook and a reason to watch. ` +
+          `Caption plus hashtags must stay under ${Math.min(captionMax, 300)} characters.`
+      );
+    }
+    parts.push(noTags ? '"hashtags": return an empty list.' : hashtagsRule(topic, hashtagRange));
     return (
       `You are a short-form video copywriter for ${topic}${epPart}. Write in ${langName}.\n` +
       intro +
-      `"description": ONE very short, punchy caption (1-2 sentences, under 150 characters) with a hook and a reason to watch. ` +
-      (noTags ? '"hashtags": return an empty list.' : hashtagsRule(topic, hashtagRange))
+      `Return a JSON object with these fields:\n- ${parts.join('\n- ')}\nReturn only the JSON.`
     );
   }
 
   if (section === 'live') {
+    const parts = [
+      `"templates": 3 catchy live-stream titles, each at most ${titleMax} characters (count every character, emoji included). ` +
+        'Each one needs an energetic hook and a reason to join now. Make them distinct from each other.' +
+        (titleContext ? ` Avoid repeating these: ${titleContext}.` : '')
+    ];
+    if (streamPlatforms.includes('twitch')) {
+      parts.push(
+        '"twitch": { "category": the exact Twitch category name as listed in the Twitch directory (usually the game, or "Just Chatting"), ' +
+          '"tags": up to 10 Twitch tags, each 1-25 letters or digits with no spaces, no # and no symbols }'
+      );
+    }
+    if (streamPlatforms.includes('kick')) {
+      parts.push(
+        '"kick": { "category": the exact Kick category name (usually the game, or "Just Chatting"), ' +
+          '"tags": up to 10 Kick tags, each 1-25 letters or digits with no spaces, no # and no symbols }'
+      );
+    }
     return (
-      `You are a live-stream copywriter for ${topic}${epPart}. Write in ${langName}.\n` +
+      `You are a live-stream copywriter for ${topic}${epPart}. Write in ${langName} (category names stay as listed on the platform).\n` +
       intro +
-      `"templates": 3 very short, catchy live-stream titles (each within the platform limits below). ` +
-      'Each one needs an energetic hook and a call to follow or join the stream. Make them distinct from each other.'
+      `Return a JSON object with these fields:\n- ${parts.join('\n- ')}\nReturn only the JSON.`
     );
   }
 

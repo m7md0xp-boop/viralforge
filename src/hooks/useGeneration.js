@@ -7,18 +7,23 @@ import { parseDataUrl } from '../services/imageRequests';
 import { getImageProvider } from '../config/aiProviders';
 import { CHANNEL_STYLES } from '../services/channelProfile';
 import { AI_SLOT, composeDescription, fillPlaceholders, limitHashtags, placeholderValues } from '../utils/placeholders';
+import { STREAM_META_PLATFORMS, normalizeStreamMeta } from '../utils/streamMeta';
 
-// Adds the hashtags block at the end of the text: "<text>\n\nHashtags:\n#a #b"
-const composeWithHashtags = (text, hashtags, lang) => {
+// Adds the hashtags at the end of the text. Long videos get a labelled block ("Hashtags:"),
+// short-form captions just a final line of tags, the way people post them.
+const composeWithHashtags = (text, hashtags, lang, labelled) => {
   const body = (text || '').trim();
   const tags = (Array.isArray(hashtags) ? hashtags : []).filter(Boolean).join(' ');
   if (!tags) return body;
+  if (!labelled) return body ? `${body}\n\n${tags}` : tags;
   const label = lang === 'ar' ? 'الهاشتاقات:' : 'Hashtags:';
   return `${body}\n\n${label}\n${tags}`;
 };
 
-// Generation, regeneration, export and copy logic for the three sections:
-// video (long YouTube), short (Shorts/TikTok/Reels/X) and live (stream templates).
+const asStrings = (list) => (Array.isArray(list) ? list.map((s) => String(s || '').trim()).filter(Boolean) : []);
+
+// Generation, regeneration, export and copy logic for the three studios:
+// video (long YouTube), short (Shorts/TikTok/Reels/X) and live (stream titles, Twitch/Kick category and tags).
 // Quick mode and chat studio share one pipeline: chat only replaces the game name with the creator's request.
 // The App passes its state and setters in `ctx`.
 export function useGeneration(ctx) {
@@ -34,7 +39,9 @@ export function useGeneration(ctx) {
     activeTab,
     chatPrompt,
     videoTitles,
-    shortsTitles,
+    shortTitles,
+    liveTitles,
+    streamMeta,
     description,
     imagePrompt,
     showToast,
@@ -42,7 +49,9 @@ export function useGeneration(ctx) {
     lang,
     setIsLoading,
     setVideoTitles,
-    setShortsTitles,
+    setShortTitles,
+    setLiveTitles,
+    setStreamMeta,
     setDescription,
     setImagePrompt,
     setCopiedSection,
@@ -52,7 +61,7 @@ export function useGeneration(ctx) {
     planRules,
     uiHooks,
     setIsRegeneratingTitles,
-    setIsRegeneratingShorts,
+    setIsRegeneratingLive,
     setIsRegeneratingDescription,
     uploadedImageBase64,
     setGeneratedImage,
@@ -60,8 +69,13 @@ export function useGeneration(ctx) {
   } = ctx;
 
   const isChat = activeTab === 'chat';
-  // Chat studio: the free-text request is the topic, so the game field is not used
-  const gameInfo = () => ({ game: isChat ? '' : gameName.trim() || 'My Game', ep: isChat ? '' : episode.trim() });
+  // Chat studio: the free-text request is the topic, so the input fields are not used.
+  // The second field is the episode for long videos, and free details (the clip, the stream idea) elsewhere.
+  const gameInfo = () => ({
+    game: isChat ? '' : gameName.trim() || 'My Game',
+    ep: isChat || section !== 'video' ? '' : episode.trim(),
+    details: isChat || section === 'video' ? '' : episode.trim()
+  });
   const values = () => {
     const { game, ep } = gameInfo();
     return placeholderValues({ game, episode: ep, profile: channelProfile });
@@ -69,6 +83,9 @@ export function useGeneration(ctx) {
   // Hashtag count follows the selected platforms (3-5 for YouTube). 0 = the platform does not use hashtags.
   const hashtagRange = () => (limits.hashtagMax === 0 ? [0, 0] : limits.hashtagRecommended);
   const templateHasSlot = typeof template === 'string' && template.includes(AI_SLOT);
+  // Shorts titles only exist on YouTube Shorts; TikTok, Reels and X posts have a caption only
+  const shortsNeedTitles = selectedPlatforms.includes('youtube_short');
+  const streamPlatforms = STREAM_META_PLATFORMS.filter((p) => selectedPlatforms.includes(p.platformId)).map((p) => p.key);
 
   const handleGenerationError = (err) => {
     if (!err) return;
@@ -79,16 +96,18 @@ export function useGeneration(ctx) {
     showToast(getSpecificApiErrorMessage(err, getActiveProviderId()), 'error');
   };
 
-  // Builds the prompt for the current section and runs it on the active provider. Returns parsed data or null.
-  const requestSection = async ({ wantTitles, wantDescription, titleContext = '' }) => {
-    const { game, ep } = gameInfo();
-    const schema = buildSchema(section, { titles: wantTitles, description: wantDescription });
+  // Builds the prompt for the current studio and runs it on the active provider. Returns parsed data or null.
+  const requestSection = async ({ wantTitles, wantDescription, titleContext = '', withStreamMeta = true }) => {
+    const { game, ep, details } = gameInfo();
+    const metaKeys = section === 'live' && withStreamMeta ? streamPlatforms : [];
+    const schema = buildSchema(section, { titles: wantTitles, description: wantDescription, streamPlatforms: metaKeys });
 
     const prompt =
       buildSectionPrompt({
         section,
         game,
         ep,
+        details,
         lang,
         // The AI sees the template with the user's real links, never raw placeholders
         template: templateHasSlot ? '' : fillPlaceholders(template, values()),
@@ -99,7 +118,10 @@ export function useGeneration(ctx) {
         wantDescription,
         titleContext,
         hashtagRange: hashtagRange(),
-        styleHint: CHANNEL_STYLES[channelProfile?.style]?.prompt || ''
+        styleHint: CHANNEL_STYLES[channelProfile?.style]?.prompt || '',
+        titleMax: limits.titleMax,
+        captionMax: limits.captionMax,
+        streamPlatforms: metaKeys
       }) + planRules;
 
     const requestBody = {
@@ -114,7 +136,8 @@ export function useGeneration(ctx) {
     return result ? result.data : null;
   };
 
-  // Final description: template (with the AI text in its slot), real links, then 3-5 unique hashtags
+  // Final description: template (with the AI text in its slot) for long videos, real links,
+  // then the right number of unique hashtags
   const finalDescription = (data) => {
     const [, maxTags] = hashtagRange();
     const text = composeDescription({
@@ -123,8 +146,10 @@ export function useGeneration(ctx) {
       values: values(),
       useTemplate: useCustomTemplate && section === 'video'
     });
-    return composeWithHashtags(text, maxTags > 0 ? limitHashtags(data.hashtags, maxTags) : [], lang);
+    return composeWithHashtags(text, maxTags > 0 ? limitHashtags(data.hashtags, maxTags) : [], lang, section === 'video');
   };
+
+  const liveTitlesFrom = (data) => asStrings(data.templates).map((tpl) => fillPlaceholders(tpl, values()));
 
   const thumbnailFor = (titles, hasReference = Boolean(uploadedImageBase64)) => {
     const { game, ep } = gameInfo();
@@ -140,15 +165,17 @@ export function useGeneration(ctx) {
       platforms: selectedPlatforms,
       gameName: game || chatPrompt.trim(),
       episode: ep,
-      hasTitles: Array.isArray(data.videoTitles) && data.videoTitles.length > 0,
+      hasTitles:
+        (Array.isArray(data.videoTitles) && data.videoTitles.length > 0) ||
+        (Array.isArray(data.shortTitles) && data.shortTitles.length > 0),
       hasShorts: Array.isArray(data.templates) && data.templates.length > 0,
       hasDescription: typeof data.description === 'string' && data.description.length > 0
     });
   };
 
   const handleGenerate = async () => {
-    const wantTitles = section === 'video' && genTitles;
-    const wantDescription = section !== 'video' || genDescription;
+    const wantTitles = section === 'video' ? genTitles : section === 'short' ? shortsNeedTitles : false;
+    const wantDescription = section === 'video' ? genDescription : section === 'short';
     const wantThumbnail = section === 'video' && genThumbnails;
 
     if (isChat && !chatPrompt.trim()) {
@@ -177,8 +204,11 @@ export function useGeneration(ctx) {
       if (!data) return;
 
       if (section === 'live') {
-        const templates = Array.isArray(data.templates) ? data.templates : [];
-        setShortsTitles(templates.map((tpl) => fillPlaceholders(String(tpl), values())));
+        setLiveTitles(liveTitlesFrom(data));
+        setStreamMeta(normalizeStreamMeta(data, selectedPlatforms));
+      } else if (section === 'short') {
+        setShortTitles(wantTitles ? asStrings(data.shortTitles).slice(0, 3) : []);
+        setDescription(typeof data.description === 'string' ? finalDescription(data) : '');
       } else {
         setVideoTitles(wantTitles && Array.isArray(data.videoTitles) ? data.videoTitles : []);
         setDescription(wantDescription && typeof data.description === 'string' ? finalDescription(data) : '');
@@ -197,12 +227,18 @@ export function useGeneration(ctx) {
     }
   };
 
+  // Long videos and shorts: new titles, avoiding the current ones
   const handleRegenerateTitles = async () => {
     setIsRegeneratingTitles(true);
     try {
-      const titleContext = videoTitles.map((item) => item.title).join(' | ');
-      const data = await requestSection({ wantTitles: true, wantDescription: false, titleContext });
-      if (data && Array.isArray(data.videoTitles)) setVideoTitles(data.videoTitles);
+      if (section === 'short') {
+        const data = await requestSection({ wantTitles: true, wantDescription: false, titleContext: shortTitles.join(' | ') });
+        if (data && Array.isArray(data.shortTitles)) setShortTitles(asStrings(data.shortTitles).slice(0, 3));
+      } else {
+        const titleContext = videoTitles.map((item) => item.title).join(' | ');
+        const data = await requestSection({ wantTitles: true, wantDescription: false, titleContext });
+        if (data && Array.isArray(data.videoTitles)) setVideoTitles(data.videoTitles);
+      }
     } catch (err) {
       handleGenerationError(err);
     } finally {
@@ -210,18 +246,19 @@ export function useGeneration(ctx) {
     }
   };
 
-  // Live section: regenerates the stream templates
-  const handleRegenerateShorts = async () => {
-    setIsRegeneratingShorts(true);
+  // Live studio: new stream titles, plus a fresh category and tags
+  const handleRegenerateLive = async () => {
+    setIsRegeneratingLive(true);
     try {
-      const data = await requestSection({ wantTitles: false, wantDescription: false });
+      const data = await requestSection({ wantTitles: false, wantDescription: false, titleContext: liveTitles.join(' | ') });
       if (data && Array.isArray(data.templates)) {
-        setShortsTitles(data.templates.map((tpl) => fillPlaceholders(String(tpl), values())));
+        setLiveTitles(liveTitlesFrom(data));
+        setStreamMeta(normalizeStreamMeta(data, selectedPlatforms));
       }
     } catch (err) {
       handleGenerationError(err);
     } finally {
-      setIsRegeneratingShorts(false);
+      setIsRegeneratingLive(false);
     }
   };
 
@@ -246,7 +283,9 @@ export function useGeneration(ctx) {
         game: gameInfo().game || chatPrompt.trim(),
         episode: gameInfo().ep,
         videoTitles,
-        templates: shortsTitles,
+        shortTitles,
+        liveTitles,
+        streamMeta,
         description,
         imagePrompt: imagePrompt || '',
         exportedAt: new Date().toISOString()
@@ -359,7 +398,7 @@ export function useGeneration(ctx) {
     handleGenerateImage,
     handleGenerate,
     handleRegenerateTitles,
-    handleRegenerateShorts,
+    handleRegenerateLive,
     handleRegenerateDescription,
     handleExportAll,
     copyToClipboard,

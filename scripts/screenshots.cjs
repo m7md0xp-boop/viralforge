@@ -29,7 +29,11 @@ const FAKE_REPLY = {
   description:
     'الليلة كانت الأصعب في سلسلتنا! في هذه الحلقة من ماينكرافت هاردكور واجهنا موجة وحوش لم نتوقعها، ' +
     'وبنينا أول جدار دفاعي حول القاعدة. شاهد حتى النهاية لتعرف هل نجونا أم لا.',
-  hashtags: ['#ماينكرافت', '#Minecraft', '#هاردكور', '#العاب', '#gaming']
+  hashtags: ['#ماينكرافت', '#Minecraft', '#هاردكور', '#العاب', '#gaming'],
+  shortTitles: ['فزت بآخر ثانية في ماينكرافت! 😱', 'أسرع هروب من الوحوش في تاريخ القناة', 'هذه اللقطة ما توقعها أحد 🔥'],
+  templates: ['🔴 بث هاردكور: هل ننجو حتى الفجر؟', 'ماينكرافت هاردكور مباشر الآن! 💀', 'ليلة الرعب 🔥'],
+  twitch: { category: 'Minecraft', tags: ['Arabic', 'Hardcore', 'Survival', 'Gaming'] },
+  kick: { category: 'Minecraft', tags: ['Arabic', 'Hardcore', 'Survival'] }
 };
 
 async function run() {
@@ -85,7 +89,39 @@ async function run() {
   if (!found) throw new Error('The generated output did not appear');
   await shot('features-generator.png');
 
-  // 4. Settings
+  // Picks a studio, adds platforms, generates with the fake reply and captures a taller window
+  const studioShot = async (index, platforms, details, name) => {
+    await js(`window.scrollTo(0, 0); document.querySelectorAll('nav[role=tablist] button')[${index}].click()`);
+    await wait(400);
+    await js(`(() => {
+      const names = ${JSON.stringify(platforms)};
+      for (const n of names) {
+        const b = [...document.querySelectorAll('main button')].find((x) => x.innerText.startsWith(n));
+        if (b && b.getAttribute('aria-pressed') !== 'true') b.click();
+      }
+      const set = (el, v) => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v);
+        el.dispatchEvent(new Event('input', { bubbles: true })); };
+      set(document.getElementById('game-name'), 'Minecraft');
+      set(document.getElementById('episode-number'), ${JSON.stringify(details)});
+    })()`);
+    await wait(300);
+    await js(`[...document.querySelectorAll('main button')].find((b) => /توليد البيانات|Generate Metadata/.test(b.innerText)).click()`);
+    await wait(1500);
+    win.setContentSize(1200, 1500);
+    await wait(400);
+    await js('window.scrollTo(0, 0)');
+    await shot(name);
+    win.setContentSize(1200, 860);
+    await wait(300);
+  };
+
+  // 4. Shorts studio
+  await studioShot(1, ['TikTok', 'X (Twitter)'], 'فزت بآخر ثانية بضربة واحدة', 'shorts-studio.png');
+
+  // 5. Live studio
+  await studioShot(2, ['Twitch', 'Kick', 'TikTok Live'], 'تحدي النجاة حتى الفجر', 'live-studio.png');
+
+  // 6. Settings
   await js(`window.scrollTo(0, 0); document.querySelector('header button[aria-label*="إعدادات"], header button[aria-label*="Settings"]').click()`);
   await shot('settings.png');
 

@@ -156,8 +156,11 @@ export const normalizeAiResponse = (parsed) => {
   if (typeof rawDescription === 'string') result.description = rawDescription;
   else if (Array.isArray(rawDescription)) result.description = rawDescription.join('\n\n');
 
-  if (Array.isArray(result.templates)) {
-    result.templates = result.templates.map((t) => (typeof t === 'string' ? t : t?.text || t?.title || String(t || '')));
+  // Lists of plain strings (live titles, Shorts titles): some models return { title } or { text } objects
+  for (const key of ['templates', 'shortTitles']) {
+    if (Array.isArray(result[key])) {
+      result[key] = result[key].map((t) => (typeof t === 'string' ? t : t?.text || t?.title || ''));
+    }
   }
 
   return result;
