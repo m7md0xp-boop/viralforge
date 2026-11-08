@@ -10,7 +10,7 @@ import { safeGetLocalStorage } from './utils/storage';
 import Header from './components/Header';
 import SettingsModal from './components/SettingsModal';
 import InputCard from './components/InputCard';
-import { loadContentPlan, buildPlanRules, strictestLimits } from './config/platforms';
+import { loadContentPlan, normalizePlan, buildPlanRules, strictestLimits } from './config/platforms';
 import OutputArea from './components/OutputArea';
 import { setSecret, hasDesktopSecrets, revealSecret } from './services/secrets';
 import { getActiveProviderId, setActiveProviderId } from './services/ai';
@@ -19,6 +19,7 @@ import { getProvider, getImageProvider, findAnyProvider } from './config/aiProvi
 import { getCurrentProfile, openProfilePicker } from './services/profiles';
 import Dashboard from './components/Dashboard';
 import Onboarding from './components/Onboarding';
+import StudioTabs from './components/StudioTabs';
 import { useGeneration } from './hooks/useGeneration';
 import { loadChannelProfile, saveChannelProfile } from './services/channelProfile';
 
@@ -39,10 +40,13 @@ const stripLegacyLinks = (text) =>
 
 export default function App() {
   const [lang, setLang] = useState(loadLang);
+  // The interface language is saved, so it stays the same after the app is closed and opened again
   useEffect(() => {
     try {
       localStorage.setItem(LANG_KEY, lang);
     } catch {}
+    document.documentElement.lang = lang;
+    document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
   }, [lang]);
   const t = (key) => translations[lang]?.[key] || translations['en']?.[key] || key;
 
@@ -80,17 +84,19 @@ export default function App() {
   // Tabbed Interface (Quick Mode vs. Chat Studio)
   const [activeTab, setActiveTab] = useState('quick'); // 'quick' | 'chat'
   const [chatPrompt, setChatPrompt] = useState('');
-  const [isRecording, setIsRecording] = useState(false); // Phase 35: Voice recording state
+  const [isRecording, setIsRecording] = useState(false);
 
-  // Clean Separate States
   const [gameName, setGameName] = useState('');
-  const [episode, setEpisode] = useState('');
+  const [episode, setEpisode] = useState(''); // episode (long videos) or free details (shorts, live)
   const [uploadedImage, setUploadedImage] = useState(null); // string | null (objectURL or data URL)
   const [uploadedImageBase64, setUploadedImageBase64] = useState(null); // string | null
-  const [videoTitles, setVideoTitles] = useState([]); // array of { title: string, score: number }
-  const [shortsTitles, setShortsTitles] = useState([]); // array of string
-  const [description, setDescription] = useState(''); // string
-  const [imagePrompt, setImagePrompt] = useState(''); // Phase 33: Editable image prompt
+  // Results. Each studio keeps its own copy while the user switches studios (see setContentType).
+  const [videoTitles, setVideoTitles] = useState([]); // long videos: [{ title, score, seo, ctr }]
+  const [shortTitles, setShortTitles] = useState([]); // YouTube Shorts titles: [string]
+  const [liveTitles, setLiveTitles] = useState([]); // stream titles: [string]
+  const [streamMeta, setStreamMeta] = useState(null); // { twitch?: {category, tags}, kick?: {...} }
+  const [description, setDescription] = useState(''); // long video description or short caption
+  const [imagePrompt, setImagePrompt] = useState(''); // editable thumbnail prompt
   const [toastMessage, setToastMessage] = useState(null); // string | null
 
   // Supporting UI states
@@ -115,22 +121,34 @@ export default function App() {
     setChannelProfile(saveChannelProfile(values));
     setChannelEditorOpen(false);
   };
+  // The open studio, and the platforms chosen in each studio (both saved)
   const [contentPlan, setContentPlan] = useState(() => loadContentPlan());
   const contentType = contentPlan.contentType;
-  const selectedPlatforms = contentPlan.platforms;
-  // Each section (long video / short / live) keeps its own output while the user switches tabs
+  const selectedPlatforms = contentPlan.platformsByType[contentType];
+  // Each studio (long video / short / live) keeps its own results while the user switches studios
   const sectionCache = useRef({});
+  const EMPTY_RESULTS = { videoTitles: [], shortTitles: [], liveTitles: [], streamMeta: null, description: '', imagePrompt: '', episode: '' };
   const setContentType = (type) => {
     if (type === contentType) return;
-    sectionCache.current[contentType] = { videoTitles, shortsTitles, description, imagePrompt };
-    const saved = sectionCache.current[type] || { videoTitles: [], shortsTitles: [], description: '', imagePrompt: '' };
+    sectionCache.current[contentType] = { videoTitles, shortTitles, liveTitles, streamMeta, description, imagePrompt, episode };
+    const saved = sectionCache.current[type] || EMPTY_RESULTS;
     setVideoTitles(saved.videoTitles);
-    setShortsTitles(saved.shortsTitles);
+    setShortTitles(saved.shortTitles);
+    setLiveTitles(saved.liveTitles);
+    setStreamMeta(saved.streamMeta);
     setDescription(saved.description);
     setImagePrompt(saved.imagePrompt);
-    setContentPlan((prev) => ({ ...prev, contentType: type }));
+    // The second field means something different in each studio (episode / clip details / stream idea)
+    setEpisode(saved.episode);
+    setContentPlan((prev) => normalizePlan({ ...prev, contentType: type }));
   };
-  const setSelectedPlatforms = (platforms) => setContentPlan((prev) => ({ ...prev, platforms }));
+  // Accepts a list or an updater function (current list -> new list), like a React setter
+  const setSelectedPlatforms = (update) =>
+    setContentPlan((prev) => {
+      const current = prev.platformsByType[prev.contentType];
+      const next = typeof update === 'function' ? update(current) : update;
+      return normalizePlan({ ...prev, platformsByType: { ...prev.platformsByType, [prev.contentType]: next } });
+    });
   const planRules = buildPlanRules(selectedPlatforms);
   const limits = strictestLimits(selectedPlatforms);
   const [isEditing, setIsEditing] = useState(false);
@@ -150,7 +168,7 @@ export default function App() {
   // Loading state for Gemini API
   const [isLoading, setIsLoading] = useState(false);
   const [isRegeneratingTitles, setIsRegeneratingTitles] = useState(false);
-  const [isRegeneratingShorts, setIsRegeneratingShorts] = useState(false);
+  const [isRegeneratingLive, setIsRegeneratingLive] = useState(false);
   const [isRegeneratingDescription, setIsRegeneratingDescription] = useState(false);
   const fileInputRef = useRef(null);
   const toastTimeoutRef = useRef(null);
@@ -253,9 +271,19 @@ export default function App() {
   };
 
 
-  // Voice Input via Web Speech API in Chat Studio
+  // Voice input (Web Speech API, chat studio). Chrome sends the audio to Google's speech service,
+  // which the desktop app (Electron) cannot use, so there the microphone button is hidden instead of failing silently.
+  const SpeechRecognition =
+    typeof window !== 'undefined' && !window.desktop && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  const voiceSupported = Boolean(SpeechRecognition);
+  const VOICE_ERRORS = {
+    'not-allowed': { ar: 'لم يُسمح بالوصول إلى الميكروفون. فعّل الإذن من إعدادات المتصفح.', en: 'Microphone access was blocked. Allow it in the browser settings.' },
+    'service-not-allowed': { ar: 'لم يُسمح بالوصول إلى الميكروفون. فعّل الإذن من إعدادات المتصفح.', en: 'Microphone access was blocked. Allow it in the browser settings.' },
+    'no-speech': { ar: 'لم يُسمع أي كلام. حاول مرة أخرى.', en: 'No speech was heard. Try again.' },
+    'audio-capture': { ar: 'لا يوجد ميكروفون متصل.', en: 'No microphone was found.' },
+    network: { ar: 'خدمة التعرف على الصوت غير متاحة الآن. تحقق من الاتصال.', en: 'The speech service is not reachable. Check your connection.' }
+  };
   const handleToggleVoiceInput = () => {
-    const SpeechRecognition = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
     if (!SpeechRecognition) {
       showToast(translations[lang]['speechNotSupportedToast'], 'error');
       return;
@@ -300,6 +328,9 @@ export default function App() {
       recognition.onerror = (e) => {
         console.warn('Speech recognition error:', e);
         setIsRecording(false);
+        if (e?.error === 'aborted') return; // the user stopped it
+        const msg = VOICE_ERRORS[e?.error];
+        showToast(msg ? msg[lang === 'ar' ? 'ar' : 'en'] : translations[lang]['speechNotSupportedToast'], 'error');
       };
 
       recognition.onend = () => {
@@ -477,7 +508,7 @@ export default function App() {
     handleGenerationError,
     handleGenerate,
     handleRegenerateTitles,
-    handleRegenerateShorts,
+    handleRegenerateLive,
     handleRegenerateDescription,
     handleExportAll,
     copyToClipboard,
@@ -500,7 +531,11 @@ export default function App() {
     genDescription,
     genThumbnails,
     setVideoTitles,
-    setShortsTitles,
+    shortTitles,
+    setShortTitles,
+    streamMeta,
+    setStreamMeta,
+    setLiveTitles,
     setDescription,
     setImagePrompt,
     t,
@@ -511,9 +546,9 @@ export default function App() {
     uiHooks,
     setIsRegeneratingTitles,
     description,
-    setIsRegeneratingShorts,
+    setIsRegeneratingLive,
     setIsRegeneratingDescription,
-    shortsTitles,
+    liveTitles,
     imagePrompt,
     setCopiedSection,
     uploadedImageBase64,
@@ -524,7 +559,8 @@ export default function App() {
   const activeImageProvider = getImageProvider(getActiveImageProviderId());
   const referencePhotoAttached = Boolean(uploadedImageBase64);
 
-  const hasGenerated = videoTitles.length > 0 || shortsTitles.length > 0 || Boolean(description) || Boolean(imagePrompt);
+  const hasGenerated =
+    videoTitles.length > 0 || shortTitles.length > 0 || liveTitles.length > 0 || Boolean(description) || Boolean(imagePrompt);
 
   return (
     <div
@@ -536,8 +572,9 @@ export default function App() {
       {/* Main Content */}
       <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col gap-6 pb-16 sm:pb-20">
         {view === 'dashboard' && <Dashboard lang={lang} />}
-        {view !== 'dashboard' && <InputCard showToast={showToast} setActiveTab={setActiveTab} activeTab={activeTab} lang={lang} gameName={gameName} setGameName={setGameName} episode={episode} setEpisode={setEpisode} chatPrompt={chatPrompt} setChatPrompt={setChatPrompt} isRecording={isRecording} handleToggleVoiceInput={handleToggleVoiceInput} contentType={contentType} setContentType={setContentType} selectedPlatforms={selectedPlatforms} setSelectedPlatforms={setSelectedPlatforms} handleGenerate={handleGenerate} isLoading={isLoading} saveStatus={saveStatus} isEditing={isEditing} handleSaveClick={handleSaveClick} handleToggleEdit={handleToggleEdit} handleSelectPresetTemplate={handleSelectPresetTemplate} channelProfile={channelProfile} onEditChannel={() => setChannelEditorOpen(true)} template={template} setTemplate={setTemplate} fileInputRef={fileInputRef} handleFileChange={handleFileChange} handleDragOver={handleDragOver} handleDragEnter={handleDragEnter} handleDragLeave={handleDragLeave} handleDrop={handleDrop} uploadedImage={uploadedImage} isDragging={isDragging} imageDetails={imageDetails} handleRemoveImage={handleRemoveImage} imageError={imageError} handleResetGenerationOptions={handleResetGenerationOptions} genTitles={genTitles} setGenTitles={setGenTitles} genDescription={genDescription} setGenDescription={setGenDescription} genThumbnails={genThumbnails} setGenThumbnails={setGenThumbnails} useCustomTemplate={useCustomTemplate} setUseCustomTemplate={setUseCustomTemplate} />}
-        {view !== 'dashboard' && <OutputArea section={contentType} limits={limits} hasGenerated={hasGenerated} lang={lang} handleExportAll={handleExportAll} genThumbnails={genThumbnails} imagePrompt={imagePrompt} setImagePrompt={setImagePrompt} handleCopyAndOpenGemini={handleCopyAndOpenGemini} handleCopyAndOpenChatGPT={handleCopyAndOpenChatGPT} generatedImage={generatedImage} isGeneratingImage={isGeneratingImage} handleGenerateImage={handleGenerateImage} imageProvider={activeImageProvider} referencePhotoAttached={referencePhotoAttached} genTitles={genTitles} videoTitles={videoTitles} handleRegenerateTitles={handleRegenerateTitles} isRegeneratingTitles={isRegeneratingTitles} copyToClipboard={copyToClipboard} copiedSection={copiedSection} shortsTitles={shortsTitles} handleRegenerateShorts={handleRegenerateShorts} isRegeneratingShorts={isRegeneratingShorts} genDescription={genDescription} description={description} handleRegenerateDescription={handleRegenerateDescription} isRegeneratingDescription={isRegeneratingDescription} />}
+        {view !== 'dashboard' && <StudioTabs lang={lang} contentType={contentType} setContentType={setContentType} />}
+        {view !== 'dashboard' && <InputCard showToast={showToast} setActiveTab={setActiveTab} activeTab={activeTab} lang={lang} gameName={gameName} setGameName={setGameName} episode={episode} setEpisode={setEpisode} chatPrompt={chatPrompt} setChatPrompt={setChatPrompt} isRecording={isRecording} handleToggleVoiceInput={handleToggleVoiceInput} voiceSupported={voiceSupported} contentType={contentType} selectedPlatforms={selectedPlatforms} setSelectedPlatforms={setSelectedPlatforms} handleGenerate={handleGenerate} isLoading={isLoading} saveStatus={saveStatus} isEditing={isEditing} handleSaveClick={handleSaveClick} handleToggleEdit={handleToggleEdit} handleSelectPresetTemplate={handleSelectPresetTemplate} channelProfile={channelProfile} onEditChannel={() => setChannelEditorOpen(true)} template={template} setTemplate={setTemplate} fileInputRef={fileInputRef} handleFileChange={handleFileChange} handleDragOver={handleDragOver} handleDragEnter={handleDragEnter} handleDragLeave={handleDragLeave} handleDrop={handleDrop} uploadedImage={uploadedImage} isDragging={isDragging} imageDetails={imageDetails} handleRemoveImage={handleRemoveImage} imageError={imageError} handleResetGenerationOptions={handleResetGenerationOptions} genTitles={genTitles} setGenTitles={setGenTitles} genDescription={genDescription} setGenDescription={setGenDescription} genThumbnails={genThumbnails} setGenThumbnails={setGenThumbnails} useCustomTemplate={useCustomTemplate} setUseCustomTemplate={setUseCustomTemplate} />}
+        {view !== 'dashboard' && <OutputArea section={contentType} limits={limits} hasGenerated={hasGenerated} lang={lang} handleExportAll={handleExportAll} genThumbnails={genThumbnails} imagePrompt={imagePrompt} setImagePrompt={setImagePrompt} handleCopyAndOpenGemini={handleCopyAndOpenGemini} handleCopyAndOpenChatGPT={handleCopyAndOpenChatGPT} generatedImage={generatedImage} isGeneratingImage={isGeneratingImage} handleGenerateImage={handleGenerateImage} imageProvider={activeImageProvider} referencePhotoAttached={referencePhotoAttached} genTitles={genTitles} videoTitles={videoTitles} handleRegenerateTitles={handleRegenerateTitles} isRegeneratingTitles={isRegeneratingTitles} copyToClipboard={copyToClipboard} copiedSection={copiedSection} selectedPlatforms={selectedPlatforms} shortTitles={shortTitles} liveTitles={liveTitles} streamMeta={streamMeta} handleRegenerateLive={handleRegenerateLive} isRegeneratingLive={isRegeneratingLive} genDescription={genDescription} description={description} handleRegenerateDescription={handleRegenerateDescription} isRegeneratingDescription={isRegeneratingDescription} />}
       </main>
 
       <footer className="sticky bottom-0 z-30 w-full bg-[#08090d]/95 dark:bg-[#08090d]/95 backdrop-blur-md border-t border-gray-800/90 py-2.5 px-4 text-center text-xs text-gray-400 shadow-lg mt-auto select-none">

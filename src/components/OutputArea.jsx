@@ -1,7 +1,8 @@
 import { translations } from '../i18n/translations';
 import { checkText } from '../utils/titleCheck';
-import { Download, Sparkles, Check, TrendingUp, RefreshCw, Copy, Smartphone, FileText, Image as ImageIcon } from 'lucide-react';
+import { Download, Sparkles, Check, TrendingUp, RefreshCw, Copy, FileText, Image as ImageIcon } from 'lucide-react';
 import { UsageBadge } from './UsageBadge';
+import { ShortsOutput, LiveOutput } from './StudioOutputs';
 
 // Strings for the thumbnail image card (kept here so the main translation file stays unchanged)
 const IMAGE_UI = {
@@ -23,7 +24,7 @@ const IMAGE_UI = {
   }
 };
 
-export default function OutputArea({ section = 'video', limits, hasGenerated, lang, handleExportAll, genThumbnails, imagePrompt, setImagePrompt, handleCopyAndOpenGemini, handleCopyAndOpenChatGPT, generatedImage, isGeneratingImage, handleGenerateImage, imageProvider, referencePhotoAttached = false, genTitles, videoTitles, handleRegenerateTitles, isRegeneratingTitles, copyToClipboard, copiedSection, shortsTitles, handleRegenerateShorts, isRegeneratingShorts, genDescription, description, handleRegenerateDescription, isRegeneratingDescription }) {
+export default function OutputArea({ section = 'video', limits, hasGenerated, lang, handleExportAll, genThumbnails, imagePrompt, setImagePrompt, handleCopyAndOpenGemini, handleCopyAndOpenChatGPT, generatedImage, isGeneratingImage, handleGenerateImage, imageProvider, referencePhotoAttached = false, genTitles, videoTitles, handleRegenerateTitles, isRegeneratingTitles, copyToClipboard, copiedSection, selectedPlatforms = [], shortTitles = [], liveTitles, streamMeta = null, handleRegenerateLive, isRegeneratingLive, genDescription, description, handleRegenerateDescription, isRegeneratingDescription }) {
   const ui = IMAGE_UI[lang === 'ar' ? 'ar' : 'en'];
   return (
         !hasGenerated ? (
@@ -231,87 +232,36 @@ export default function OutputArea({ section = 'video', limits, hasGenerated, la
             )}
 
             {/* 2. YouTube Shorts Titles Section */}
-            {section === 'live' && shortsTitles.length > 0 && (
-            <div className="bg-[#151922] border border-gray-800 rounded-xl p-4 sm:p-6 shadow-xl space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <Smartphone className="w-5 h-5 text-purple-400 shrink-0" />
-                  <h3 className="text-base font-semibold text-gray-200">
-                    {lang === 'ar' ? 'قوالب البث المباشر' : 'Live stream templates'}
-                  </h3>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                  <button
-                    type="button"
-                    onClick={handleRegenerateShorts}
-                    disabled={isRegeneratingShorts}
-                    className={`min-h-[44px] flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-medium rounded-lg bg-gray-800 border border-gray-700 text-gray-200 transition-all ${
-                      isRegeneratingShorts
-                        ? 'opacity-70 cursor-not-allowed'
-                        : 'hover:bg-gray-700 hover:text-purple-400 cursor-pointer'
-                    }`}
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isRegeneratingShorts ? 'animate-spin text-purple-400' : ''}`} />
-                    <span>
-                      {isRegeneratingShorts
-                        ? translations[lang]['regeneratingBtn']
-                        : translations[lang]['regenerateBtn']}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      copyToClipboard(
-                        shortsTitles.join('\n'),
-                        'shortsTitles'
-                      )
-                    }
-                    className="min-h-[44px] flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-medium rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-200 hover:text-emerald-400 transition-all cursor-pointer"
-                  >
-                    {copiedSection === 'shortsTitles' ? (
-                      <>
-                        <Check className="w-4 h-4 text-emerald-400" />
-                        <span className="text-emerald-400 font-semibold">{translations[lang]['copiedText']}</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-4 h-4" />
-                        <span>{translations[lang]['copyShortsBtn']}</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-2.5">
-                {shortsTitles.map((title, index) => (
-                  <div
-                    key={index}
-                    className="p-3.5 rounded-lg bg-[#0d0f14] border border-gray-800/80 hover:border-purple-500/40 flex items-center justify-between gap-3 transition-all"
-                  >
-                    <span className="text-sm font-medium text-gray-200 flex-1 break-words">
-                      {title}
-                    </span>
-                    <button
-                      type="button"
-                      aria-label={`${translations[lang]['copyBtn']} ${index + 1}`}
-                      onClick={() => copyToClipboard(title, `short-${index}`)}
-                      className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-emerald-400 transition-all cursor-pointer shrink-0"
-                    >
-                      {copiedSection === `short-${index}` ? (
-                        <Check className="w-4 h-4 text-emerald-400" />
-                      ) : (
-                        <Copy className="w-4 h-4" />
-                      )}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {/* Shorts and live studios have their own result cards */}
+            {section === 'short' && (
+              <ShortsOutput
+                lang={lang}
+                platforms={selectedPlatforms}
+                shortTitles={shortTitles}
+                description={description}
+                copyToClipboard={copyToClipboard}
+                copiedSection={copiedSection}
+                onRegenerateTitles={handleRegenerateTitles}
+                isRegeneratingTitles={isRegeneratingTitles}
+                onRegenerateCaption={handleRegenerateDescription}
+                isRegeneratingCaption={isRegeneratingDescription}
+              />
+            )}
+            {section === 'live' && (
+              <LiveOutput
+                lang={lang}
+                platforms={selectedPlatforms}
+                liveTitles={liveTitles}
+                streamMeta={streamMeta}
+                copyToClipboard={copyToClipboard}
+                copiedSection={copiedSection}
+                onRegenerate={handleRegenerateLive}
+                isRegenerating={isRegeneratingLive}
+              />
             )}
 
             {/* 3. Description Section */}
-            {section !== 'live' && Boolean(description) && (
+            {section === 'video' && Boolean(description) && (
             <div className="bg-[#151922] border border-gray-800 rounded-xl p-4 sm:p-6 shadow-xl space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
