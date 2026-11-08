@@ -43,8 +43,6 @@ export const base64ToText = (base64) => {
   }
 };
 
-const LANDSCAPE = { width: 1280, height: 720 }; // 16:9, the YouTube thumbnail ratio
-
 // Cloudflare Workers AI, FLUX.1 schnell. Free daily neuron allowance.
 const buildCloudflare = (provider, { prompt }) => ({
   path: provider.path,
@@ -103,7 +101,7 @@ export const parseImageResponse = (provider, response) => {
   };
 
   const json = response.json;
-  if (!response.ok) fail(jsonError(json) || `Status ${response.status}`);
+  if (!response.ok) fail(errorText(response) || `Status ${response.status}`);
 
   if (provider.format === 'cloudflare-image') {
     const b64 = json?.result?.image;

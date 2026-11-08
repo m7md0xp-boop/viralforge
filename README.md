@@ -68,7 +68,7 @@ ViralForge مساعد مفتوح المصدر لصنّاع محتوى الألع
 
 ## 🛠️ التقنيات
 
-React 18 و Vite 6 و Tailwind CSS، و Electron 33 لنسخة سطح المكتب، واختبارات بـ `node:test`.
+React 18 و Vite 6 و Tailwind CSS، و Electron 33 لنسخة سطح المكتب، و ESLint 9 لجودة الكود، واختبارات بـ `node:test` المدمجة في Node.
 
 ## 🚀 التشغيل
 
@@ -79,9 +79,58 @@ git clone https://github.com/m7md0xp-boop/viralforge.git
 cd viralforge
 npm install
 npm run dev          # نسخة الويب على http://localhost:5173
-npm test             # اختبارات منطق القوالب والـ Prompts
 npm run build        # بناء نسخة الإنتاج
 ```
+
+### 🧪 الجودة والاختبارات
+
+```bash
+npm run lint         # فحص الكود بـ ESLint
+npm test             # الاختبارات (القوالب، الـ Prompts، المنصات، المزوّدون، الترجمات)
+npm run check        # الثلاثة معاً: lint ثم test ثم build (شغّله قبل كل Pull Request)
+npm run screenshots  # إعادة التقاط صور README (مع تشغيل npm run dev في نافذة أخرى)
+```
+
+## 🗂️ هيكل المشروع
+
+```
+src/
+├── App.jsx                 يربط الـ hooks بالمكوّنات فقط (بدون منطق)
+├── main.jsx                نقطة البداية: نافذة التطبيق أو شاشة اختيار المستخدم
+├── i18n/                   نظام الترجمة الموحّد
+│   ├── locales/ar.js       كل نصوص الواجهة بالعربية
+│   ├── locales/en.js       نفس المفاتيح بالإنجليزية
+│   ├── translate.js        البحث والمتغيرات {name} (بدون React، تستخدمه الخدمات والاختبارات)
+│   ├── I18nProvider.jsx    اللغة الحالية وحفظها واتجاه الصفحة
+│   └── useI18n.js          const { t, lang, dir } = useI18n()
+├── hooks/                  الحالة والمنطق، hook لكل مسؤولية
+│   ├── useStudio.js        الاستوديو المفتوح، منصاته، ونتائج كل استوديو
+│   ├── useGeneration.js    التوليد وإعادة التوليد والتصدير والصور
+│   ├── useTemplateManager.js, useGenerationOptions.js, useReferenceImage.js
+│   ├── useProviderSettings.js, useChannelProfile.js, useVoiceInput.js
+│   └── useTheme.js, useToast.js, useCopy.js
+├── components/
+│   ├── layout/             Header, Footer, Toast
+│   ├── studio/             تبويبات الاستوديوهات، بطاقة الإدخال، المنصات، القالب، الصورة، الخيارات
+│   ├── results/            نتائج الفيديو الطويل والشورتس والبث، وعدّادات الأحرف
+│   ├── dialogs/            شاشة الترحيب، الإعدادات
+│   ├── screens/            لوحة المتابعة، اختيار المستخدم (سطح المكتب)
+│   └── ui/                 عناصر مشتركة: Card، أزرار النسخ وإعادة التوليد، ToggleSwitch...
+├── config/                 المنصات وحدودها، الـ Prompts، القوالب، قائمة المزوّدين
+├── services/               الاتصال بالمزوّدين، المفاتيح المشفّرة، الحافظة، بيانات القناة
+└── utils/                  دوال صافية: المتغيرات، الهاشتاقات، وسوم البث، العدّادات، السجل
+electron/                   العملية الرئيسية والـ preload لنسخة سطح المكتب
+shared/aiProviders.json     قائمة المزوّدين، تقرؤها الواجهة ونسخة سطح المكتب معاً
+tests/                      اختبارات node:test
+scripts/screenshots.cjs     التقاط صور README
+```
+
+### 🌐 إضافة نص أو ترجمة
+1. أضف المفتاح في `src/i18n/locales/ar.js` و `src/i18n/locales/en.js` بنفس المكان.
+2. استخدمه في المكوّن: `t('group.key')`، أو مع متغير: `t('settings.keyRequired', { provider })`.
+3. لا تكتب نصوصاً عربية داخل `src/components`: الاختبارات تتأكد أن المفاتيح متطابقة في اللغتين، وأن كل مفتاح مستخدم موجود، وأن المكوّنات خالية من النصوص الثابتة.
+
+أسماء المزوّدين والمنصات بيانات وليست نصوص واجهة، لذلك تبقى في `shared/aiProviders.json` و `src/config/platforms.js`.
 
 ### 🪟 نسخة سطح المكتب (Windows)
 
@@ -136,7 +185,7 @@ npm run dist      # بناء ملف التثبيت داخل مجلد release (ي
 
 1. اعمل Fork للمشروع.
 2. أنشئ فرعاً جديداً (`git checkout -b feature/AmazingFeature`).
-3. تأكد أن `npm test` و `npm run build` يعملان.
+3. تأكد أن `npm run check` ينجح (ESLint والاختبارات والبناء).
 4. ارفع التغييرات وافتح Pull Request.
 
 ## 📄 الترخيص

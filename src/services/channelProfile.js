@@ -5,22 +5,19 @@ import { USER_CONFIG } from '../config/userConfig.js';
 
 const KEY = 'vf_channel_profile_v1';
 
-// Writing styles offered on the welcome screen. `prompt` is the instruction added to every request.
+// Writing styles offered on the welcome screen (labels: i18n "styles.<id>").
+// `prompt` is the instruction added to every request.
 export const CHANNEL_STYLES = {
   energetic: {
-    label: { ar: 'حماسي وسريع', en: 'Energetic' },
     prompt: 'Energetic, hype tone with short punchy sentences.'
   },
   funny: {
-    label: { ar: 'كوميدي وخفيف', en: 'Funny' },
     prompt: 'Light, funny tone with playful jokes.'
   },
   calm: {
-    label: { ar: 'هادئ ومريح', en: 'Calm' },
     prompt: 'Calm, friendly and relaxed tone.'
   },
   informative: {
-    label: { ar: 'تعليمي وشارح', en: 'Informative' },
     prompt: 'Clear, informative tone that explains tips and strategies.'
   }
 };

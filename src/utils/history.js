@@ -33,7 +33,9 @@ export function recordGeneration({ contentType, platforms, gameName, episode, ha
 export function clearHistory() {
   try {
     localStorage.removeItem(KEY);
-  } catch {}
+  } catch {
+    // Storage unavailable: nothing to clear
+  }
 }
 
 export function computeStats(list) {

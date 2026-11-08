@@ -2,6 +2,7 @@ import { getSecret, hasDesktopSecrets } from './secrets';
 import { providerPost } from './aiTransport';
 import { IMAGE_PROVIDERS, getImageProvider } from '../config/aiProviders';
 import { buildImageRequest, parseImageResponse, splitCloudflareKey } from './imageRequests';
+import { translate } from '../i18n/translate';
 
 const IMAGE_ACTIVE_KEY = 'image_provider';
 const DEFAULT_IMAGE_PROVIDER = 'cloudflare-image'; // first free-limit provider in the catalog
@@ -50,7 +51,7 @@ export const executeImageGeneration = async ({ prompt, reference = null, ui }) =
   const key = getSecret(provider.keyName).trim();
 
   if (!key) {
-    ui.showToast(ui.t('toastProviderKeyRequired').replace('{provider}', provider.label.en), 'error');
+    ui.showToast(ui.t('settings.keyRequired', { provider: provider.label.en }), 'error');
     return null;
   }
 
@@ -82,15 +83,14 @@ export const executeImageGeneration = async ({ prompt, reference = null, ui }) =
   }
 };
 
-// Friendly messages for image errors (keeps the provider's own text when it is clear)
-export const getImageErrorMessage = (err, providerId) => {
-  const provider = getImageProvider(providerId);
-  const name = provider.label.en;
-  if (err?.name === 'AbortError') return `${name}: the image request timed out (${IMAGE_TIMEOUT_MS / 1000}s). Try again.`;
-  const status = err?.status;
+// Friendly, translated message for a failed image request (keeps the provider's own text when it is clear)
+export const getImageErrorMessage = (err, providerId, t = (key, vars) => translate('en', key, vars)) => {
+  const name = getImageProvider(providerId).label.en;
+  if (err?.name === 'AbortError') return t('errors.imageTimeout', { provider: name, seconds: IMAGE_TIMEOUT_MS / 1000 });
+  const status = Number(err?.status || 0);
   const message = err?.message || '';
-  if (status == 401 || status == 403) return `${name} key is invalid or not allowed.`;
-  if (status == 402 || /credit|balance|billing|quota/i.test(message)) return `${name}: free quota or credit used up, or billing is required.`;
-  if (status == 429) return `${name}: rate limited. Try again later.`;
-  return message ? `${name}: ${message}` : `${name} image error (${status || 'Network error'})`;
+  if (status === 401 || status === 403) return t('errors.invalidKey', { provider: name });
+  if (status === 402 || /credit|balance|billing|quota/i.test(message)) return t('errors.imageBilling', { provider: name });
+  if (status === 429) return t('errors.rateLimited', { provider: name });
+  return message ? t('errors.generic', { provider: name, message }) : t('errors.network', { provider: name, status: status || '-' });
 };

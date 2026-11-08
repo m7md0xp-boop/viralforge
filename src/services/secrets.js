@@ -22,7 +22,9 @@ const readBrowserKey = (name) => {
 const removeBrowserKey = (name) => {
   try {
     localStorage.removeItem(name);
-  } catch {}
+  } catch {
+    // Storage unavailable: nothing to remove
+  }
 };
 
 // Must be awaited once at startup (see main.jsx) before the UI reads keys.
