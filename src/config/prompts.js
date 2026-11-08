@@ -141,12 +141,15 @@ export function buildSectionPrompt({
   titleMax = 100,
   captionMax = 5000,
   // Live: stream-meta blocks to fill ('twitch', 'kick')
-  streamPlatforms = []
+  streamPlatforms = [],
+  // Series memory (utils/series.js): earlier titles of this game, to keep the style and avoid repeats
+  seriesContext = ''
 }) {
   const topic = game || "the topic in the creator's request";
   const epPart = ep ? `, episode: ${ep}` : '';
   const langName = LANG_NAME[lang] || 'Arabic';
-  const intro = requestLine(userText) + styleLine(styleHint) + (details ? `Details: ${details}\n` : '');
+  const intro =
+    requestLine(userText) + styleLine(styleHint) + (details ? `Details: ${details}\n` : '') + (seriesContext ? `${seriesContext}\n` : '');
   const noTags = !hashtagRange || hashtagRange[1] === 0;
 
   if (section === 'short') {

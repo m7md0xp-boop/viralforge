@@ -6,6 +6,7 @@ const crypto = require('crypto');
 
 const DIST_DIR = path.join(__dirname, '..', 'dist');
 const catalog = require('../shared/aiProviders.json');
+const brand = require('../shared/brand.json');
 // Text and image providers together. Keys are unique by name (Gemini text and image share one key).
 const ALL_PROVIDERS = [...catalog.providers, ...catalog.imageProviders];
 const SECRET_NAMES = [...new Set(ALL_PROVIDERS.map((p) => p.keyName))];
@@ -395,7 +396,7 @@ function createProfileWindow(profileId) {
     height: 860,
     minWidth: 900,
     minHeight: 640,
-    title: 'ViralForge',
+    title: brand.name,
     backgroundColor: '#07090e',
     autoHideMenuBar: true,
     webPreferences: { ...baseWebPreferences(), partition: partitionFor(profileId) }
@@ -420,7 +421,7 @@ function createPickerWindow() {
     width: 520,
     height: 640,
     resizable: false,
-    title: 'ViralForge',
+    title: brand.name,
     backgroundColor: '#07090e',
     autoHideMenuBar: true,
     webPreferences: baseWebPreferences()
@@ -430,12 +431,37 @@ function createPickerWindow() {
   return win;
 }
 
+// ----- automatic updates -----
+// The installed app (NSIS build) checks the GitHub Releases of the project at start-up and every 6 hours,
+// downloads a newer version in the background and installs it when the app quits (the OS shows a notice).
+// Skipped in development, in the portable build (it cannot update itself) and with VF_DISABLE_UPDATES=1.
+const UPDATE_INTERVAL_MS = 6 * 60 * 60 * 1000;
+function startAutoUpdates() {
+  if (!app.isPackaged || process.env.PORTABLE_EXECUTABLE_FILE || process.env.VF_DISABLE_UPDATES === '1') return;
+  let autoUpdater;
+  try {
+    ({ autoUpdater } = require('electron-updater'));
+  } catch (err) {
+    console.warn('electron-updater is not available', err);
+    return;
+  }
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on('error', (err) => console.warn('Update check failed', err?.message || err));
+  const check = () => autoUpdater.checkForUpdatesAndNotify().catch((err) => console.warn('Update check failed', err?.message || err));
+  check();
+  setInterval(check, UPDATE_INTERVAL_MS).unref();
+}
+
 app.whenReady().then(() => {
   if (!gotSingleInstanceLock) return;
+  // Windows uses this id to group the app's windows and to show its notifications
+  app.setAppUserModelId(brand.appId);
   Menu.setApplicationMenu(null);
   registerIpcHandlers();
   ensureProfiles();
   createPickerWindow();
+  startAutoUpdates();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createPickerWindow();

@@ -9,6 +9,7 @@ import { CHANNEL_STYLES } from '../services/channelProfile';
 import { recordGeneration } from '../utils/history';
 import { AI_SLOT, composeDescription, fillPlaceholders, limitHashtags, placeholderValues } from '../utils/placeholders';
 import { STREAM_META_PLATFORMS, normalizeStreamMeta } from '../utils/streamMeta';
+import { BRAND } from '../config/brand';
 
 // Adds the hashtags at the end of the text. Long videos get a labelled block ("Hashtags:"),
 // short-form captions just a final line of tags, the way people post them.
@@ -30,7 +31,23 @@ const EXTERNAL_IMAGE_TOOLS = {
 // Generation, regeneration and export for the three studios:
 // video (long YouTube), short (Shorts/TikTok/Reels/X) and live (stream titles, Twitch/Kick category and tags).
 // Quick mode and chat mode share one pipeline: chat only replaces the game name with the creator's request.
-export function useGeneration({ studio, gameName, chatMode, chatPrompt, options, template, channelProfile, referenceImage, t, lang, showToast, copy }) {
+// `library` (useLibrary) keeps every result; `series` (useSeries) adds the series memory to prompts.
+export function useGeneration({
+  studio,
+  gameName,
+  chatMode,
+  chatPrompt,
+  options,
+  template,
+  channelProfile,
+  referenceImage,
+  library,
+  series,
+  t,
+  lang,
+  showToast,
+  copy
+}) {
   const { studio: section, platforms, details, results, updateResults } = studio;
   const [busy, setBusy] = useState({}); // { generate, titles, live, description, image }: true while running
   const run = async (name, task) => {
@@ -62,6 +79,28 @@ export function useGeneration({ studio, gameName, chatMode, chatPrompt, options,
   const streamKeys = STREAM_META_PLATFORMS.filter((p) => platforms.includes(p.platformId)).map((p) => p.key);
   const save = (patch) => updateResults(section, patch);
 
+  // Titles of a result patch as plain strings (for the series memory)
+  const patchTitles = (patch) => [
+    ...(patch.videoTitles || []).map((x) => x.title),
+    ...(patch.shortTitles || []),
+    ...(patch.liveTitles || [])
+  ];
+
+  // A new generation: shown in the studio, saved in the library, remembered in the series
+  const keep = (patch) => {
+    const { game, ep } = gameInfo();
+    const entryId = library.add({ studio: section, game, details, chatPrompt: chatMode ? chatPrompt.trim() : '', platforms, results: patch });
+    save({ ...patch, entryId });
+    if (!chatMode) series.record({ game, episode: ep, titles: patchTitles(patch) });
+  };
+
+  // A regeneration: replaces part of the current result and updates its library entry
+  const refresh = (patch) => {
+    save(patch);
+    library.updateResults(results.entryId, patch);
+    if (!chatMode) series.record({ game: gameInfo().game, titles: patchTitles(patch) });
+  };
+
   const showError = (err) => {
     if (!err) return;
     showToast(err.provider ? getSpecificApiErrorMessage(err.error, err.provider, t) : getSpecificApiErrorMessage(err, undefined, t), 'error');
@@ -91,7 +130,8 @@ export function useGeneration({ studio, gameName, chatMode, chatPrompt, options,
         styleHint: CHANNEL_STYLES[channelProfile?.style]?.prompt || '',
         titleMax: limits.titleMax,
         captionMax: limits.captionMax,
-        streamPlatforms: metaKeys
+        streamPlatforms: metaKeys,
+        seriesContext: chatMode ? '' : series.promptContext
       }) + planRules;
 
     const body = {
@@ -153,7 +193,7 @@ export function useGeneration({ studio, gameName, chatMode, chatPrompt, options,
 
       // Thumbnail only: the prompt is built locally, so no API request is needed
       if (section === 'video' && !wantTitles && !wantDescription) {
-        save({ videoTitles: [], description: '', generatedImage: null, imagePrompt: thumbnailFor(results.videoTitles) });
+        keep({ videoTitles: [], description: '', generatedImage: null, imagePrompt: thumbnailFor(results.videoTitles) });
         record({});
         return;
       }
@@ -162,15 +202,15 @@ export function useGeneration({ studio, gameName, chatMode, chatPrompt, options,
         const data = await request({ wantTitles, wantDescription });
         if (!data) return;
         if (section === 'live') {
-          save(liveResults(data));
+          keep(liveResults(data));
         } else if (section === 'short') {
-          save({
+          keep({
             shortTitles: wantTitles ? asStrings(data.shortTitles).slice(0, 3) : [],
             description: typeof data.description === 'string' ? finalDescription(data) : ''
           });
         } else {
           const videoTitles = wantTitles && Array.isArray(data.videoTitles) ? data.videoTitles : [];
-          save({
+          keep({
             videoTitles,
             description: wantDescription && typeof data.description === 'string' ? finalDescription(data) : '',
             imagePrompt: wantThumbnail ? thumbnailFor(videoTitles.length ? videoTitles : results.videoTitles) : '',
@@ -189,11 +229,11 @@ export function useGeneration({ studio, gameName, chatMode, chatPrompt, options,
       try {
         if (section === 'short') {
           const data = await request({ wantTitles: true, wantDescription: false, titleContext: results.shortTitles.join(' | ') });
-          if (data && Array.isArray(data.shortTitles)) save({ shortTitles: asStrings(data.shortTitles).slice(0, 3) });
+          if (data && Array.isArray(data.shortTitles)) refresh({ shortTitles: asStrings(data.shortTitles).slice(0, 3) });
         } else {
           const titleContext = results.videoTitles.map((item) => item.title).join(' | ');
           const data = await request({ wantTitles: true, wantDescription: false, titleContext });
-          if (data && Array.isArray(data.videoTitles)) save({ videoTitles: data.videoTitles });
+          if (data && Array.isArray(data.videoTitles)) refresh({ videoTitles: data.videoTitles });
         }
       } catch (err) {
         showError(err);
@@ -205,7 +245,7 @@ export function useGeneration({ studio, gameName, chatMode, chatPrompt, options,
     run('live', async () => {
       try {
         const data = await request({ wantTitles: false, wantDescription: false, titleContext: results.liveTitles.join(' | ') });
-        if (data && Array.isArray(data.templates)) save(liveResults(data));
+        if (data && Array.isArray(data.templates)) refresh(liveResults(data));
       } catch (err) {
         showError(err);
       }
@@ -215,7 +255,7 @@ export function useGeneration({ studio, gameName, chatMode, chatPrompt, options,
     run('description', async () => {
       try {
         const data = await request({ wantTitles: false, wantDescription: true });
-        if (data && typeof data.description === 'string') save({ description: finalDescription(data) });
+        if (data && typeof data.description === 'string') refresh({ description: finalDescription(data) });
       } catch (err) {
         showError(err);
       }
@@ -226,12 +266,12 @@ export function useGeneration({ studio, gameName, chatMode, chatPrompt, options,
       const { game, ep } = gameInfo();
       // Keeps letters (any language), digits, dash and underscore so the file name is valid everywhere
       const fileName = (game || 'content').replace(/[^\p{L}\p{N}_-]+/gu, '_').slice(0, 60) || 'content';
-      const { generatedImage, ...text } = results; // the image is downloaded from its own button
+      const { generatedImage: _image, entryId: _entryId, ...text } = results; // the image has its own download button
       const data = { section, game: game || chatPrompt.trim(), episode: ep, platforms, ...text, exportedAt: new Date().toISOString() };
       const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
       const a = document.createElement('a');
       a.href = url;
-      a.download = `viralforge_${fileName}.json`;
+      a.download = `${BRAND.name.toLowerCase()}_${fileName}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

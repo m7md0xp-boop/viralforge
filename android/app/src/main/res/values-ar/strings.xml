@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- App name on phones set to Arabic. Generated from shared/brand.json by: npm run brand -->
+<resources>
+    <string name="app_name">فايرال فورج</string>
+    <string name="title_activity_main">فايرال فورج</string>
+</resources>

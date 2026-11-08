@@ -36,6 +36,33 @@ const FAKE_REPLY = {
   kick: { category: 'Minecraft', tags: ['Arabic', 'Hardcore', 'Survival'] }
 };
 
+// Fake vision review for the Thumbnail Lab screenshot
+const FAKE_REVIEW = {
+  score: 84,
+  face: { present: true, emotion: 'دهشة وخوف', score: 90 },
+  text: { content: 'NIGHT 7', score: 78 },
+  composition: 82,
+  curiosity: 86,
+  strengths: ['وجه كبير ومعبّر يلفت النظر', 'ألوان دافئة متباينة مع الخلفية'],
+  improvements: ['كبّر النص قليلاً وأضف له ظلاً أقوى', 'قلّل التفاصيل في الخلفية خلف الوجه', 'جرّب لوناً أفتح للنص ليظهر في الوضع الفاتح']
+};
+
+// A sample thumbnail drawn in the page (no external image needed)
+const DRAW_THUMBNAIL = `(async () => {
+  const c = document.createElement('canvas'); c.width = 1280; c.height = 720; const x = c.getContext('2d');
+  const g = x.createLinearGradient(0, 0, 1280, 720); g.addColorStop(0, '#1e1b4b'); g.addColorStop(1, '#b91c1c'); x.fillStyle = g; x.fillRect(0, 0, 1280, 720);
+  x.fillStyle = 'rgba(16,185,129,0.35)'; x.beginPath(); x.arc(1080, 120, 220, 0, 7); x.fill();
+  x.fillStyle = '#e0ac8c'; x.beginPath(); x.ellipse(360, 380, 200, 250, 0, 0, 7); x.fill();
+  x.fillStyle = '#111'; x.beginPath(); x.arc(295, 330, 24, 0, 7); x.arc(425, 330, 24, 0, 7); x.fill();
+  x.beginPath(); x.ellipse(360, 480, 52, 74, 0, 0, 7); x.fill();
+  x.font = 'bold 150px Arial'; x.lineWidth = 16; x.strokeStyle = '#000'; x.fillStyle = '#facc15';
+  x.strokeText('NIGHT 7', 640, 430); x.fillText('NIGHT 7', 640, 430);
+  const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+  const input = document.querySelector('main input[type=file]');
+  const dt = new DataTransfer(); dt.items.add(new File([blob], 'thumbnail.png', { type: 'image/png' }));
+  input.files = dt.files; input.dispatchEvent(new Event('change', { bubbles: true }));
+})()`;
+
 async function run() {
   fs.mkdirSync(OUT, { recursive: true });
   const win = new BrowserWindow({
@@ -69,8 +96,13 @@ async function run() {
   // 3. Generated output (fake AI reply)
   await js(`(() => {
     const reply = ${JSON.stringify(JSON.stringify(FAKE_REPLY))};
-    window.fetch = async () => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: reply }] } }] }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } });
+    const review = ${JSON.stringify(JSON.stringify(FAKE_REVIEW))};
+    // Text requests carry a response schema; the vision review (Thumbnail Lab) does not
+    window.fetch = async (_url, init) => {
+      const isVision = !JSON.parse(init.body).generationConfig?.responseSchema;
+      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: isVision ? review : reply }] } }] }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } });
+    };
     const set = (el, v) => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v);
       el.dispatchEvent(new Event('input', { bubbles: true })); };
     set(document.getElementById('game-name'), 'Minecraft');
@@ -121,7 +153,38 @@ async function run() {
   // 5. Live studio
   await studioShot(2, ['Twitch', 'Kick', 'TikTok Live'], 'تحدي النجاة حتى الفجر', 'live-studio.png');
 
-  // 6. Settings
+  const openView = (re) => js(`window.scrollTo(0, 0); [...document.querySelectorAll('header button')].find((b) => ${re}.test(b.getAttribute('title') || '')).click()`);
+
+  // 6. Thumbnail Lab: local checks + vision review, then the YouTube preview
+  await openView('/مختبر|Lab/');
+  await wait(400);
+  await js(DRAW_THUMBNAIL);
+  await wait(1500);
+  await js(`(() => {
+    const i = document.getElementById('lab-title');
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, 'نجوت ليلة كاملة في ماينكرافت هاردكور… وهذا ما حدث! (الحلقة 7)');
+    i.dispatchEvent(new Event('input', { bubbles: true }));
+    [...document.querySelectorAll('main button')].find((b) => /تقييم بالذكاء|AI review/.test(b.innerText)).click();
+  })()`);
+  await wait(1800);
+  win.setContentSize(1200, 1900);
+  await wait(400);
+  await js(`[...document.querySelectorAll('main h2')].pop().scrollIntoView({ block: 'start' }); window.scrollBy(0, 330)`);
+  await shot('thumbnail-lab.png');
+  win.setContentSize(1200, 860);
+  await wait(300);
+  await js(`[...document.querySelectorAll('main h3')].find((h) => /معاينة|preview/i.test(h.innerText)).scrollIntoView({ block: 'start' }); window.scrollBy(0, -20)`);
+  await shot('youtube-preview.png');
+
+  // 7. Library: the generations made above
+  await openView('/المكتبة|Library/');
+  await wait(1200); // the library loads from IndexedDB
+  await js(`[...document.querySelectorAll('main button')].find((b) => /إضافة للمفضلة|Add to favourites/.test(b.getAttribute('title') || '')).click()`);
+  await wait(600);
+  await shot('library.png');
+
+  // 8. Settings
+  await openView('/مختبر|Lab/');
   await js(`window.scrollTo(0, 0); document.querySelector('header button[aria-label*="إعدادات"], header button[aria-label*="Settings"]').click()`);
   await shot('settings.png');
 

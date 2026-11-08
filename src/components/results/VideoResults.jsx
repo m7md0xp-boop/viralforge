@@ -1,4 +1,4 @@
-import { Download, Sparkles, TrendingUp, FileText, Image as ImageIcon } from 'lucide-react';
+import { Download, Sparkles, TrendingUp, FileText, Wand2, Image as ImageIcon } from 'lucide-react';
 import { useI18n } from '../../i18n/useI18n';
 import { UsageBadge } from '../ui/UsageBadge';
 import { Card, CardHeader, CopyButton, CopyIconButton, RegenerateButton } from '../ui/Card';
@@ -8,7 +8,7 @@ const secondaryButton =
   'min-h-[44px] flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 text-xs sm:text-sm font-semibold rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 transition-all cursor-pointer';
 
 // Thumbnail prompt (editable), image generation with the selected provider, and the result
-function ThumbnailCard({ results, generation, imageProvider, referenceAttached }) {
+function ThumbnailCard({ results, generation, imageProvider, referenceAttached, onEvaluate }) {
   const { t } = useI18n();
   const { imagePrompt, generatedImage } = results;
   const busy = generation.busy.image;
@@ -71,6 +71,14 @@ function ThumbnailCard({ results, generation, imageProvider, referenceAttached }
             <Download className="w-4 h-4" />
             <span>{t('video.downloadImage')}</span>
           </a>
+          <button
+            type="button"
+            onClick={() => onEvaluate(generatedImage.src)}
+            className="min-h-[44px] ms-2 inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg bg-purple-950/60 hover:bg-purple-900/60 border border-purple-500/40 text-purple-200 transition-all cursor-pointer"
+          >
+            <Wand2 className="w-4 h-4" />
+            <span>{t('video.evaluate')}</span>
+          </button>
         </div>
       )}
     </Card>
@@ -130,11 +138,11 @@ function DescriptionCard({ description, generation, copy, copiedId }) {
 }
 
 // Long-video results: thumbnail, titles, description
-export default function VideoResults({ results, options, generation, imageProvider, referenceAttached, copy, copiedId }) {
+export default function VideoResults({ results, options, generation, imageProvider, referenceAttached, onEvaluate, copy, copiedId }) {
   return (
     <>
       {(options.thumbnails || Boolean(results.imagePrompt)) && (
-        <ThumbnailCard results={results} generation={generation} imageProvider={imageProvider} referenceAttached={referenceAttached} />
+        <ThumbnailCard results={results} generation={generation} imageProvider={imageProvider} referenceAttached={referenceAttached} onEvaluate={onEvaluate} />
       )}
       {results.videoTitles.length > 0 && (
         <TitlesCard titles={results.videoTitles} limits={generation.limits} generation={generation} copy={copy} copiedId={copiedId} />

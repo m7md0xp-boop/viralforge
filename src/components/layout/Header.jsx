@@ -1,25 +1,31 @@
-import { Sun, Moon, Settings, LayoutDashboard, PenSquare, Users, Tv } from 'lucide-react';
+import { Sun, Moon, Settings, Users, Tv } from 'lucide-react';
 import { useI18n } from '../../i18n/useI18n';
-
-const VIEWS = [
-  { id: 'create', icon: PenSquare, label: 'header.create' },
-  { id: 'dashboard', icon: LayoutDashboard, label: 'header.dashboard' }
-];
+import { VIEWS } from '../../config/views';
+import { BRAND, brandTagline } from '../../config/brand';
 
 const iconButton =
   'min-h-[44px] min-w-[44px] p-2 rounded-lg bg-gray-800/80 border border-gray-700 transition-all duration-200 cursor-pointer flex items-center justify-center shrink-0';
 
 export default function Header({ theme, toggleTheme, openSettings, view, setView, profileName, onSwitchUser, channelName, onEditChannel }) {
-  const { t, toggleLanguage } = useI18n();
+  const { t, lang, toggleLanguage } = useI18n();
   const themeLabel = theme === 'dark' ? t('header.lightMode') : t('header.darkMode');
 
   return (
-    <header className="border-b border-gray-800 bg-[#151922]/80 backdrop-blur px-4 sm:px-6 py-3.5 sm:py-4 flex items-center justify-between shadow-md">
+    <header
+      className="border-b border-gray-800 bg-[#151922]/80 backdrop-blur px-4 sm:px-6 py-3.5 sm:py-4 flex items-center justify-between shadow-md"
+      // Phone apps draw under the status bar / notch: keep the header below it
+      style={{ paddingTop: 'max(0.875rem, env(safe-area-inset-top))' }}
+    >
       <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 ltr:pr-2 rtl:pl-2">
         <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-purple-500 shadow-[0_0_10px_#a855f7] shrink-0" />
-        <h1 className="text-base sm:text-xl font-bold tracking-wide bg-gradient-to-r from-purple-400 via-fuchsia-400 to-emerald-400 bg-clip-text text-transparent truncate">
-          {t('common.appTitle')}
-        </h1>
+        <div className="min-w-0">
+          <h1 className="text-base sm:text-xl font-bold tracking-wide bg-gradient-to-r from-purple-400 via-fuchsia-400 to-emerald-400 bg-clip-text text-transparent truncate leading-tight">
+            {BRAND.name}
+          </h1>
+          <p className="hidden sm:block text-[10px] text-gray-500 truncate leading-tight">
+            {lang === 'ar' ? `${BRAND.nameAr} · ${brandTagline(lang)}` : brandTagline(lang)}
+          </p>
+        </div>
         <button
           type="button"
           onClick={onEditChannel}
@@ -39,6 +45,7 @@ export default function Header({ theme, toggleTheme, openSettings, view, setView
               type="button"
               onClick={() => setView(id)}
               aria-pressed={view === id}
+              title={t(label)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-200 ${
                 view === id
                   ? 'bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white shadow-[0_0_16px_-4px_rgba(168,85,247,0.7)]'
@@ -46,7 +53,7 @@ export default function Header({ theme, toggleTheme, openSettings, view, setView
               }`}
             >
               <Icon className="w-3.5 h-3.5" />
-              {t(label)}
+              <span className="hidden lg:inline">{t(label)}</span>
             </button>
           ))}
         </div>

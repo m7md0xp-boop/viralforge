@@ -2,6 +2,7 @@ import { Zap, MessageSquare, Mic, Info, Loader2 } from 'lucide-react';
 import { useI18n } from '../../i18n/useI18n';
 import PasteButton from '../ui/PasteButton';
 import PlatformPicker from './PlatformPicker';
+import SeriesChip from './SeriesChip';
 
 const tabClass = (active) =>
   `min-h-[44px] flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
@@ -13,10 +14,17 @@ const fieldClass =
 
 // Input card of the open studio: quick mode (game + details) or chat mode (free request),
 // the platforms, and the Generate button.
-export default function StudioInputCard({ studio, inputs, voice, onGenerate, isGenerating, showToast }) {
+export default function StudioInputCard({ studio, inputs, voice, seriesMemory, onGenerate, isGenerating, showToast }) {
   const { t } = useI18n();
   const { mode, setMode, gameName, setGameName, details, setDetails, chatPrompt, setChatPrompt, platforms, setPlatforms } = inputs;
   const pasteError = (msg) => showToast(msg, 'error');
+
+  // Series memory: when a known series is typed and the episode is empty, the next episode is filled in
+  const fillNextEpisode = () => {
+    if (studio !== 'video' || details.trim() || !seriesMemory.next) return;
+    setDetails(seriesMemory.next);
+    showToast(t('series.autoFilled', { episode: seriesMemory.next }), 'info');
+  };
 
   return (
     <div className="bg-[#151922] border border-gray-800 rounded-xl p-4 sm:p-6 shadow-xl space-y-5">
@@ -50,6 +58,7 @@ export default function StudioInputCard({ studio, inputs, voice, onGenerate, isG
               type="text"
               value={gameName}
               onChange={(e) => setGameName(e.target.value)}
+              onBlur={fillNextEpisode}
               placeholder={t('input.gamePlaceholder')}
               className={fieldClass}
             />
@@ -69,6 +78,9 @@ export default function StudioInputCard({ studio, inputs, voice, onGenerate, isG
               placeholder={t(`studios.${studio}.detailsPlaceholder`)}
               className={fieldClass}
             />
+          </div>
+          <div className="md:col-span-2 empty:hidden">
+            <SeriesChip seriesMemory={seriesMemory} studio={studio} details={details} onUseNext={setDetails} showToast={showToast} />
           </div>
         </div>
       ) : (

@@ -5,7 +5,7 @@ import ShortsResults from './ShortsResults';
 import LiveResults from './LiveResults';
 
 // Results of the open studio, with "Export all" on top. Shows a placeholder before the first generation.
-export default function ResultsPanel({ studio, hasResults, results, platforms, options, generation, imageProvider, referenceAttached, copy, copiedId }) {
+export default function ResultsPanel({ studio, hasResults, results, platforms, options, generation, imageProvider, referenceAttached, onEvaluate, copy, copiedId }) {
   const { t } = useI18n();
 
   if (!hasResults) {
@@ -35,7 +35,7 @@ export default function ResultsPanel({ studio, hasResults, results, platforms, o
         <span>{t('common.outputSummary')}</span>
       </div>
 
-      {studio === 'video' && <VideoResults {...shared} options={options} imageProvider={imageProvider} referenceAttached={referenceAttached} />}
+      {studio === 'video' && <VideoResults {...shared} options={options} imageProvider={imageProvider} referenceAttached={referenceAttached} onEvaluate={onEvaluate} />}
       {studio === 'short' && <ShortsResults {...shared} />}
       {studio === 'live' && <LiveResults {...shared} />}
     </div>

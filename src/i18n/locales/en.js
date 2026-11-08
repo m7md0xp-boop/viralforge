@@ -31,7 +31,9 @@ export default {
     darkMode: 'Dark mode',
     toggleLanguage: 'Switch the language to Arabic',
     languageButton: 'ع',
-    settings: 'Settings'
+    settings: 'Settings',
+    lab: 'Thumbnail Lab',
+    library: 'Library'
   },
   footer: {
     openSource: 'Open-source project'
@@ -144,7 +146,8 @@ export default {
     copyOpenGemini: 'Copy & Open Gemini',
     copyOpenChatGpt: 'Copy & Open ChatGPT',
     geminiCopied: 'Prompt copied! Upload your image in Gemini and paste it.',
-    chatGptCopied: 'Prompt copied! Upload your image in ChatGPT and paste it.'
+    chatGptCopied: 'Prompt copied! Upload your image in ChatGPT and paste it.',
+    evaluate: 'Evaluate in the Lab'
   },
   shorts: {
     titles: 'YouTube Shorts titles',
@@ -200,6 +203,113 @@ export default {
     nameRequired: 'Enter your channel name.',
     start: 'Get started',
     skip: 'Skip for now'
+  },
+  nav: {
+    label: 'Main navigation'
+  },
+  lab: {
+    title: 'Thumbnail Lab',
+    subtitle: 'Score your thumbnail and see it the way YouTube will show it, before you publish.',
+    upload: 'Upload a thumbnail or drop it here',
+    uploadHint: 'PNG, JPG or WebP, ideally 1280×720. You can also paste it (Ctrl+V).',
+    useGenerated: 'Use the generated image',
+    replace: 'Change image',
+    titleLabel: 'Video title (for the preview and the review)',
+    titlePlaceholder: 'Type the title or pick one of yours',
+    pickTitle: 'My titles',
+    analyzing: 'Checking…',
+    aiReview: 'AI review',
+    aiReviewing: 'Reviewing with the vision model…',
+    aiAgain: 'Review again',
+    aiUnavailable: 'The AI review needs a Gemini, ChatGPT or Claude key in Settings. The current score is from the local checks only.',
+    aiBy: 'by {provider}',
+    score: 'Final score',
+    localScore: 'Local checks',
+    aiScore: 'AI review',
+    localTitle: 'Local checks (run on your device)',
+    localNote: 'Estimates of light, contrast, colour and sharpness. The face area is estimated from skin colour.',
+    aiTitle: 'Vision model review',
+    face: 'Face',
+    noFace: 'No clear face',
+    text: 'Text on the image',
+    noText: 'No text',
+    composition: 'Composition',
+    curiosity: 'Curiosity',
+    strengths: 'Strengths',
+    improvements: 'What to improve',
+    readError: 'The image could not be read. Try another one.',
+    grade: {
+      excellent: 'Excellent',
+      good: 'Good',
+      fair: 'Fair',
+      weak: 'Needs work'
+    },
+    checks: {
+      resolution: 'Resolution',
+      aspect: '16:9 aspect ratio',
+      brightness: 'Lighting',
+      contrast: 'Contrast',
+      color: 'Colour vibrancy',
+      sharpness: 'Sharpness',
+      clutter: 'Clutter',
+      smallSize: 'Clarity at small size',
+      face: 'Face area (estimate)'
+    },
+    tips: {
+      resolution: 'Upload at least 1280×720 so the thumbnail is not blurry.',
+      aspect: 'Use 16:9 so YouTube does not crop the edges.',
+      brightness: 'The image is too dark or too bright. Adjust the light so details show.',
+      contrast: 'Increase the contrast between the main subject and the background.',
+      color: 'Colours look dull. Use saturated, contrasting colours that catch the eye.',
+      sharpness: 'The image is soft. Use a sharper shot or add a little sharpening.',
+      clutter: 'Too many elements, or too empty. Make one clear subject the hero.',
+      smallSize: 'Details get lost at small size. Make subjects and text bigger, with clear outlines.',
+      face: 'A large, expressive face (about a third of the frame) usually lifts clicks.'
+    }
+  },
+  preview: {
+    title: 'YouTube preview',
+    note: 'An approximate mock-up of the page, not an official YouTube capture.',
+    mobile: 'Phone',
+    desktop: 'Desktop',
+    sidebar: 'Up next',
+    dark: 'Dark',
+    light: 'Light',
+    meta: '12K views • 2 hours ago',
+    channelFallback: 'Your channel',
+    titleFallback: 'Your video title shows here',
+    longTitle: 'The title is longer than {n} characters and may be cut off here.',
+    noImage: 'Upload an image above to see the preview.'
+  },
+  library: {
+    title: 'Library',
+    subtitle: 'Everything you generate is saved here on your device. Search, copy, star, or reopen any result.',
+    search: 'Search by title or game…',
+    all: 'All',
+    favorites: 'Favourites',
+    count: '{n} results',
+    empty: 'Nothing saved yet. Every generation is saved here automatically.',
+    noMatch: 'No matching results.',
+    favorite: 'Add to favourites',
+    unfavorite: 'Remove from favourites',
+    restore: 'Open in studio',
+    restored: 'Result opened in the studio',
+    delete: 'Delete',
+    deleteConfirm: 'Delete this result from the library?',
+    show: 'Details',
+    hide: 'Hide',
+    description: 'Description',
+    titles: 'Titles'
+  },
+  series: {
+    found: 'Saved series: {game}',
+    info: 'Last episode {episode} · {count} earlier generations',
+    infoNoEpisode: '{count} earlier generations',
+    next: 'Next episode: {episode}',
+    forget: 'Forget series',
+    forgotten: 'Series memory deleted',
+    autoFilled: 'Next episode number filled in ({episode})',
+    hint: 'New titles keep the series style and avoid repeating its earlier titles.'
   },
   styles: {
     energetic: 'Energetic',

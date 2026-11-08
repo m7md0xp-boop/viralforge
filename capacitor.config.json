@@ -1,0 +1,16 @@
+{
+  "appId": "com.viralforge.app",
+  "appName": "ViralForge",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true
+  },
+  "ios": {
+    "contentInset": "never",
+    "scrollEnabled": true
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}
