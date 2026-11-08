@@ -1,69 +1,57 @@
-import { USER_CONFIG } from './userConfig';
-
+// Description templates. Placeholders are filled with the user's own values before display:
+//   {ai_description}  the text written by the AI (hook + what happens in the video)
+//   {game} {episode}  from the input fields
+//   {channel_name} {channel_link} {subscribe_link} {linktree_link} {discord_link}  from the channel profile
+// A line whose link placeholder is empty is removed, so keep each label and its link on the same line.
+// Hashtags are added after the template by the app (3-5 for YouTube), so templates should not contain them.
 export const STORAGE_KEY = 'yt_creator_template';
 
+export const DEFAULT_TEMPLATE = `{ai_description}
 
-export const DEFAULT_TEMPLATE = `🎮 Welcome to {game} - Episode {episode}!
+👍 Drop a LIKE and SUBSCRIBE if you enjoyed {game}!
+🔔 Subscribe to {channel_name}: {subscribe_link}
 
-In today's video, we are jumping back into {game} for another epic adventure!
-
-Drop a LIKE and SUBSCRIBE if you enjoy the video!
-
-📺 Check out {channel_name} and subscribe:
-🔗 {channel_link}
+🌐 All my links: {linktree_link}
+💬 Discord: {discord_link}
 
 ⏱️ Timestamps:
 00:00 - Introduction
 01:30 - {game} Gameplay
-10:00 - Highlights
-15:00 - Outro & Next Episode
-
-#gaming #{game}`;
+10:00 - Highlights`;
 
 export const PRESET_TEMPLATES = [
   {
-    id: 'roblox-challenge',
+    id: 'gaming-challenge-ar',
     name: {
-      ar: 'قالب روبلوكس وتحديات الألعاب',
-      en: 'Roblox & Gaming Challenges'
+      ar: 'قالب تحديات الألعاب',
+      en: 'Gaming challenges (Arabic)'
     },
-    text: `بسم الله الرحمن الرحيم، سبحان الله وبحمده، سبحان الله العظيم. 🤍
+    text: `{ai_description}
 
-في الحلقة {episode} من ماب "{game}" في روبلوكس.. رجعنا بتحدي أقوى وأسرع! ⛳😱 صرنا نجمع كميات أكبر ونحمل الكور بأسرع وقت ممكن عشان نفتح مناطق الـ Yards المتقدمة ونحطم أرقام قياسية جديدة! 🔥🚀
+🔥 الحلقة {episode} من {game}، لا تفوّتون التحدي القادم!
 
-📺 لا تنسون تشيكون على قناة المبدع {channel_name} وتدعمونه بالاشتراك:
-🔗 {channel_link}
-
-🔔 اشترك بالقناة وفعل جرس التنبيهات عشان ما يفوتك أي جديد:
-${USER_CONFIG.channelUrl}?sub_confirmation=1
-
+🔔 اشترك في قناة {channel_name} وفعّل جرس التنبيهات: {subscribe_link}
 👍 لا تنسى اللايك إذا عجبك المقطع!
 
-#Roblox #روبلوكس #{game} #gaming`
+🌐 جميع حساباتي: {linktree_link}
+💬 سيرفر الديسكورد: {discord_link}`
   },
   {
     id: 'gameplay-walkthrough',
     name: {
       ar: 'قالب تختيم ومغامرات ألعاب',
-      en: 'Gameplay & Walkthrough'
+      en: 'Gameplay & Walkthrough (Arabic)'
     },
     text: `🎮 مرحباً بكم في الحلقة {episode} من تختيم لعبة {game}!
 
-في هذه الحلقة نستكمل رحلتنا ونواجه تحديات جديدة ومثيرة! شاركوني رأيكم في التعليقات.
+{ai_description}
 
-👍 إذا عجبك المقطع لا تنسى تضغط لايك وتشترك بالقناة وتفعل جرس التنبيهات 🔔
-
+👍 إذا عجبك المقطع اضغط لايك واشترك بالقناة وفعّل جرس التنبيهات 🔔
 ━━━━━━━━━━━━━━━
-📺 لا تنسون تشيكون على قناة {channel_name} وتدعمونه بالاشتراك:
-🔗 {channel_link}
-
-🌐 جميع حساباتي وروابط البث:
-🔗 {linktree_link}
-
-💬 سيرفر الديسكورد:
-🔗 {discord_link}
-━━━━━━━━━━━━━━━
-#{game} #تختيم #العاب`
+📺 قناة {channel_name}: {channel_link}
+🌐 جميع حساباتي وروابط البث: {linktree_link}
+💬 سيرفر الديسكورد: {discord_link}
+━━━━━━━━━━━━━━━`
   },
   {
     id: 'default-template',

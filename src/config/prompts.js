@@ -78,61 +78,87 @@ export function schemaExample(schema) {
   return JSON.stringify(build(schema), null, 2);
 }
 
-const titlesRule = (game, ep) =>
-  `3 long, search-optimized video titles for ${game}${ep ? ` episode ${ep}` : ''} (each under 100 characters). ` +
+const titlesRule = (topic, ep) =>
+  `3 long, search-optimized video titles for ${topic}${ep ? ` episode ${ep}` : ''} (each under 100 characters). ` +
   'For each title give: score (viral appeal 0-100), seo (search optimisation 0-100), ctr (estimated click-through 0-100).';
 
-const descriptionRule = (game, ep, lang) =>
-  `A detailed YouTube description in ${LANG_NAME[lang] || 'Arabic'} (150-250 words): a strong hook in the first two lines, ` +
-  `what happens in ${game}${ep ? ` episode ${ep}` : ''}, and a short call to subscribe and comment. ` +
-  'Do NOT put hashtags inside the description; they go in the hashtags field.';
+// `bodyOnly`: the user's template already holds the call to action and the links, so the AI writes only the body.
+const descriptionRule = (topic, ep, lang, bodyOnly) =>
+  bodyOnly
+    ? `The main text of a YouTube description in ${LANG_NAME[lang] || 'Arabic'} (80-150 words): a strong hook in the first two lines ` +
+      `and what happens in ${topic}${ep ? ` episode ${ep}` : ''}. No links, no call to subscribe and no hashtags: the rest of the description is added by the app.`
+    : `A detailed YouTube description in ${LANG_NAME[lang] || 'Arabic'} (150-250 words): a strong hook in the first two lines, ` +
+      `what happens in ${topic}${ep ? ` episode ${ep}` : ''}, and a short call to subscribe and comment. ` +
+      'Do NOT put hashtags inside the description; they go in the hashtags field.';
 
-const hashtagsRule = (game) =>
-  `"hashtags": 10-15 currently trending YouTube hashtags for ${game} and its genre, each starting with # and with no spaces. ` +
-  'Mix broad gaming tags with game-specific tags. Return them only in this field.';
+// YouTube shows at most 3 hashtags above the title and ignores all of them past 15, so 3-5 is the default.
+export const DEFAULT_HASHTAG_RANGE = [3, 5];
+const hashtagsRule = (topic, [min, max] = DEFAULT_HASHTAG_RANGE) =>
+  `"hashtags": ${min === max ? min : `${min}-${max}`} relevant, currently trending hashtags for ${topic} (never more than ${max}), ` +
+  'each starting with # and with no spaces. Put the most specific one first. Return them only in this field.';
 
-// Optional style guide from the user's own description template
+// Template used as a style guide when it has no {ai_description} slot. It arrives with the user's links already filled in.
 const templateStyle = (template, useCustomTemplate) =>
   useCustomTemplate && template
-    ? `Follow the writing style and structure of this template (do not copy its placeholders):\n${template}\n`
+    ? `Follow the writing style and structure of this template, and keep every link line from it exactly as written:\n${template}\n`
     : '';
 
-export function buildSectionPrompt({ section, game, ep, lang, template, useCustomTemplate, userText, wantTitles, wantDescription, titleContext }) {
+const styleLine = (styleHint) => (styleHint ? `Tone: ${styleHint}\n` : '');
+
+// The user's free-text request (chat studio) becomes the topic of the normal section prompt,
+// so chat mode returns the same fields as quick mode for the selected content type.
+const requestLine = (userText) =>
+  userText ? `The creator's request (treat it as the topic and follow its wishes): '${userText}'.\n` : '';
+
+export function buildSectionPrompt({
+  section,
+  game,
+  ep,
+  lang,
+  template,
+  useCustomTemplate,
+  templateHasSlot = false,
+  userText = '',
+  wantTitles,
+  wantDescription,
+  titleContext,
+  hashtagRange = DEFAULT_HASHTAG_RANGE,
+  styleHint = ''
+}) {
+  const topic = game || "the topic in the creator's request";
   const epPart = ep ? `, episode: ${ep}` : '';
   const langName = LANG_NAME[lang] || 'Arabic';
-
-  if (userText) {
-    return (
-      `You are a gaming YouTube/social media expert. The user's custom request: '${userText}'.\n` +
-      `Return a JSON object with exactly these keys: ${Object.keys(SECTION_SCHEMAS[section].properties).join(', ')}. ` +
-      `Write in ${langName}. Return only the JSON.`
-    );
-  }
+  const intro = requestLine(userText) + styleLine(styleHint);
+  const noTags = !hashtagRange || hashtagRange[1] === 0;
 
   if (section === 'short') {
     return (
-      `You are a short-form video copywriter for ${game}${epPart}. Write in ${langName}.\n` +
+      `You are a short-form video copywriter for ${topic}${epPart}. Write in ${langName}.\n` +
+      intro +
       `"description": ONE very short, punchy caption (1-2 sentences, under 150 characters) with a hook and a reason to watch. ` +
-      `${hashtagsRule(game)}`
+      (noTags ? '"hashtags": return an empty list.' : hashtagsRule(topic, hashtagRange))
     );
   }
 
   if (section === 'live') {
     return (
-      `You are a live-stream copywriter for ${game}${epPart}. Write in ${langName}.\n` +
-      `"templates": 3 very short, catchy live-stream titles or descriptions (each under 140 characters). ` +
+      `You are a live-stream copywriter for ${topic}${epPart}. Write in ${langName}.\n` +
+      intro +
+      `"templates": 3 very short, catchy live-stream titles (each within the platform limits below). ` +
       'Each one needs an energetic hook and a call to follow or join the stream. Make them distinct from each other.'
     );
   }
 
   // video (long content)
+  const bodyOnly = useCustomTemplate && templateHasSlot;
   const parts = [];
-  if (wantTitles) parts.push(`"videoTitles": ${titlesRule(game, ep)}${titleContext ? ` Avoid repeating these: ${titleContext}.` : ''}`);
-  if (wantDescription) parts.push(`"description": ${descriptionRule(game, ep, lang)}`);
-  parts.push(hashtagsRule(game));
+  if (wantTitles) parts.push(`"videoTitles": ${titlesRule(topic, ep)}${titleContext ? ` Avoid repeating these: ${titleContext}.` : ''}`);
+  if (wantDescription) parts.push(`"description": ${descriptionRule(topic, ep, lang, bodyOnly)}`);
+  parts.push(hashtagsRule(topic, hashtagRange));
   return (
-    `You are a senior YouTube SEO copywriter for gaming channels. Game: ${game}${epPart}. Write in ${langName}.\n` +
-    templateStyle(template, useCustomTemplate) +
+    `You are a senior YouTube SEO copywriter for gaming channels. Game: ${topic}${epPart}. Write in ${langName}.\n` +
+    intro +
+    (bodyOnly || !wantDescription ? '' : templateStyle(template, useCustomTemplate)) +
     `Return a JSON object with these fields:\n- ${parts.join('\n- ')}\nReturn only the JSON.`
   );
 }
@@ -171,13 +197,18 @@ export function detectGenre(game = '', topic = '') {
 }
 
 // `gameTitle` is shown as bold 3D text. Keep the game name exactly as the user wrote it.
-export function buildThumbnailPrompt({ game = 'My Game', ep = '', topic = '' }) {
+// `hasReference`: the user attached a photo of their face. Without one, the prompt describes a generic gamer
+// instead of pointing at a photo that does not exist.
+export function buildThumbnailPrompt({ game = 'My Game', ep = '', topic = '', hasReference = false }) {
   const genre = detectGenre(game, topic);
   const rule = GENRE_RULES.find((r) => r.genre === genre);
   const label = ep ? `${game} ${ep}` : game;
   return [
-    `YouTube thumbnail, 16:9 (1280x720), ${genre} style. Use the attached reference photo as the exact face and identity of the person; keep their facial features.`,
-    `Scene: ${rule.scene}`,
+    `YouTube thumbnail, 16:9 (1280x720), ${genre} style. ` +
+      (hasReference
+        ? 'Use the attached reference photo as the exact face and identity of the person; keep their facial features.'
+        : 'The main character is an expressive young gamer YouTuber (no real person).'),
+    `Scene: ${hasReference ? rule.scene : rule.scene.replace(/the person from the reference photo/gi, 'the gamer')}`,
     'Composition: the face is large (about 40% of the frame), placed on one third, with strong emotional expression. High contrast, saturated colours, shallow depth of field, clean and uncluttered.',
     `Text: bold, extruded 3D lettering reading exactly "${label}" with a thick outline, placed in a clear area and readable at small size.`,
     topic ? `Video topic: ${topic}.` : ''

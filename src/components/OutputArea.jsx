@@ -23,7 +23,7 @@ const IMAGE_UI = {
   }
 };
 
-export default function OutputArea({ section = 'video', limits, hasGenerated, lang, handleExportAll, genThumbnails, imagePrompt, setImagePrompt, handleCopyAndOpenGemini, handleCopyAndOpenChatGPT, generatedImage, isGeneratingImage, handleGenerateImage, imageProvider, referencePhotoAttached = false, genTitles, videoTitles, handleRegenerateTitles, isRegeneratingTitles, copyToClipboard, copiedSection, genShorts, shortsTitles, handleRegenerateShorts, isRegeneratingShorts, genDescription, description, handleRegenerateDescription, isRegeneratingDescription }) {
+export default function OutputArea({ section = 'video', limits, hasGenerated, lang, handleExportAll, genThumbnails, imagePrompt, setImagePrompt, handleCopyAndOpenGemini, handleCopyAndOpenChatGPT, generatedImage, isGeneratingImage, handleGenerateImage, imageProvider, referencePhotoAttached = false, genTitles, videoTitles, handleRegenerateTitles, isRegeneratingTitles, copyToClipboard, copiedSection, shortsTitles, handleRegenerateShorts, isRegeneratingShorts, genDescription, description, handleRegenerateDescription, isRegeneratingDescription }) {
   const ui = IMAGE_UI[lang === 'ar' ? 'ar' : 'en'];
   return (
         !hasGenerated ? (

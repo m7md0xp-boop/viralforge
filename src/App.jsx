@@ -6,7 +6,6 @@ import {
 
 import { translations } from './i18n/translations';
 import { STORAGE_KEY, DEFAULT_TEMPLATE, PRESET_TEMPLATES } from './config/templates';
-import { USER_CONFIG } from './config/userConfig';
 import { safeGetLocalStorage } from './utils/storage';
 import Header from './components/Header';
 import SettingsModal from './components/SettingsModal';
@@ -19,14 +18,35 @@ import { getActiveImageProviderId, setActiveImageProviderId } from './services/i
 import { getProvider, getImageProvider, findAnyProvider } from './config/aiProviders';
 import { getCurrentProfile, openProfilePicker } from './services/profiles';
 import Dashboard from './components/Dashboard';
+import Onboarding from './components/Onboarding';
 import { useGeneration } from './hooks/useGeneration';
+import { loadChannelProfile, saveChannelProfile } from './services/channelProfile';
+
+const LANG_KEY = 'ui_lang';
+const loadLang = () => {
+  try {
+    return localStorage.getItem(LANG_KEY) === 'en' ? 'en' : 'ar';
+  } catch {
+    return 'ar';
+  }
+};
+// Generation toggles start on. "Restore defaults" brings them back here.
+const DEFAULT_OPTIONS = { titles: true, description: true, thumbnails: true, customTemplate: true };
+
+// Removes lines that point at the developer's own channel, saved by older versions in every user's template
+const stripLegacyLinks = (text) =>
+  typeof text === 'string' ? text.split('\n').filter((l) => !/youtube\.com\/@izeroxp/i.test(l)).join('\n') : text;
 
 export default function App() {
-  // Phase 7: Multi-Language Support
-  const [lang, setLang] = useState('ar');
+  const [lang, setLang] = useState(loadLang);
+  useEffect(() => {
+    try {
+      localStorage.setItem(LANG_KEY, lang);
+    } catch {}
+  }, [lang]);
   const t = (key) => translations[lang]?.[key] || translations['en']?.[key] || key;
 
-  // Phase 28: Dark/Light Mode Theme Toggle
+  // Dark/Light Mode Theme Toggle
   const [theme, setTheme] = useState(() => {
     return safeGetLocalStorage('theme_preference', 'dark');
   });
@@ -57,12 +77,12 @@ export default function App() {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
 
-  // Phase 20.1: Tabbed Interface (Quick Mode vs. Chat Studio)
+  // Tabbed Interface (Quick Mode vs. Chat Studio)
   const [activeTab, setActiveTab] = useState('quick'); // 'quick' | 'chat'
   const [chatPrompt, setChatPrompt] = useState('');
   const [isRecording, setIsRecording] = useState(false); // Phase 35: Voice recording state
 
-  // Phase 3-A: Clean Separate States
+  // Clean Separate States
   const [gameName, setGameName] = useState('');
   const [episode, setEpisode] = useState('');
   const [uploadedImage, setUploadedImage] = useState(null); // string | null (objectURL or data URL)
@@ -70,7 +90,6 @@ export default function App() {
   const [videoTitles, setVideoTitles] = useState([]); // array of { title: string, score: number }
   const [shortsTitles, setShortsTitles] = useState([]); // array of string
   const [description, setDescription] = useState(''); // string
-  const [thumbnails, setThumbnails] = useState([]); // array of { url: string } — empty for now
   const [imagePrompt, setImagePrompt] = useState(''); // Phase 33: Editable image prompt
   const [toastMessage, setToastMessage] = useState(null); // string | null
 
@@ -81,23 +100,21 @@ export default function App() {
   const [toastType, setToastType] = useState('success');
   const [copiedSection, setCopiedSection] = useState(null);
 
-  // Generation Toggles (independent checkboxes, all default to true)
-  const [genTitles, setGenTitles] = useState(true);
-  const [genShorts, setGenShorts] = useState(true);
-  const [genDescription, setGenDescription] = useState(true);
-  const [genThumbnails, setGenThumbnails] = useState(true);
-  const [useCustomTemplate, setUseCustomTemplate] = useState(true);
+  // Generation toggles (long videos)
+  const [genTitles, setGenTitles] = useState(DEFAULT_OPTIONS.titles);
+  const [genDescription, setGenDescription] = useState(DEFAULT_OPTIONS.description);
+  const [genThumbnails, setGenThumbnails] = useState(DEFAULT_OPTIONS.thumbnails);
+  const [useCustomTemplate, setUseCustomTemplate] = useState(DEFAULT_OPTIONS.customTemplate);
 
   // Template Manager state
-  const [template, setTemplate] = useState(() => {
-    return safeGetLocalStorage(STORAGE_KEY, DEFAULT_TEMPLATE);
-  });
-  const [channelName, setChannelName] = useState(() => {
-    return safeGetLocalStorage('channel_name', USER_CONFIG.channelName);
-  });
-  const [channelLink, setChannelLink] = useState(() => {
-    return safeGetLocalStorage('channel_link', USER_CONFIG.channelUrl);
-  });
+  const [template, setTemplate] = useState(() => stripLegacyLinks(safeGetLocalStorage(STORAGE_KEY, DEFAULT_TEMPLATE)));
+  // The user's channel (name, links, style). A new user sees the welcome screen first.
+  const [channelProfile, setChannelProfile] = useState(loadChannelProfile);
+  const [channelEditorOpen, setChannelEditorOpen] = useState(false);
+  const handleSaveChannelProfile = (values) => {
+    setChannelProfile(saveChannelProfile(values));
+    setChannelEditorOpen(false);
+  };
   const [contentPlan, setContentPlan] = useState(() => loadContentPlan());
   const contentType = contentPlan.contentType;
   const selectedPlatforms = contentPlan.platforms;
@@ -135,17 +152,8 @@ export default function App() {
   const [isRegeneratingTitles, setIsRegeneratingTitles] = useState(false);
   const [isRegeneratingShorts, setIsRegeneratingShorts] = useState(false);
   const [isRegeneratingDescription, setIsRegeneratingDescription] = useState(false);
-  const [isRegeneratingThumbnails, setIsRegeneratingThumbnails] = useState(false);
-  const [downloadingIndex, setDownloadingIndex] = useState(null);
-
-  // Cycle counters for independent regeneration
-  const [titleCycle, setTitleCycle] = useState(0);
-  const [shortsCycle, setShortsCycle] = useState(0);
-  const [descCycle, setDescCycle] = useState(0);
-
   const fileInputRef = useRef(null);
   const toastTimeoutRef = useRef(null);
-  const thumbnailTimeoutsRef = useRef({});
   const uploadedImageRef = useRef(uploadedImage);
   const speechRecognitionRef = useRef(null);
 
@@ -154,64 +162,13 @@ export default function App() {
     uploadedImageRef.current = uploadedImage;
   }, [uploadedImage]);
 
-  // Load template on mount, check localStorage integrity, & Cleanup on unmount
+  // Saves the cleaned template once, so the developer links removed above do not come back
   useEffect(() => {
-    // Check localStorage integrity on mount for corrupted JSON
     try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (!k) continue;
-          const val = localStorage.getItem(k);
-          if (val && typeof val === 'string') {
-            const trimmed = val.trim();
-            const isPlaceholder = /^\{(game|episode|ep)\}/i.test(trimmed);
-            if ((trimmed.startsWith('{') || trimmed.startsWith('[')) && !isPlaceholder) {
-              try {
-                JSON.parse(trimmed);
-              } catch (e) {
-                console.warn(`Corrupted localStorage entry found for "${k}" (invalid JSON). Falling back to defaults.`, e);
-              }
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('LocalStorage access warning:', e);
-    }
-
-    const saved = safeGetLocalStorage(STORAGE_KEY, DEFAULT_TEMPLATE);
-    if (saved) {
-      // If the saved template is the exact old default without channel placeholders, upgrade it
-      if (!saved.includes('{channel_name}') && !saved.includes('{channel_link}') && saved.includes('Drop a LIKE and SUBSCRIBE if you enjoy the video!')) {
-        const upgraded = saved.replace(
-          'Drop a LIKE and SUBSCRIBE if you enjoy the video!',
-          'Drop a LIKE and SUBSCRIBE if you enjoy the video!\n\n📺 Check out {channel_name} and subscribe:\n🔗 {channel_link}'
-        );
-        try {
-          localStorage.setItem(STORAGE_KEY, upgraded);
-        } catch {}
-        setTemplate(upgraded);
-      } else {
-        setTemplate(saved);
-      }
-    }
-
-    // Ensure default channel_name and channel_link exist in localStorage
-    if (localStorage.getItem('channel_name') === null) {
-      try {
-        localStorage.setItem('channel_name', USER_CONFIG.channelName);
-      } catch {}
-    }
-    if (localStorage.getItem('channel_link') === null) {
-      try {
-        localStorage.setItem('channel_link', USER_CONFIG.channelUrl);
-      } catch {}
-    }
-
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved !== null && stripLegacyLinks(saved) !== saved) localStorage.setItem(STORAGE_KEY, stripLegacyLinks(saved));
+    } catch {}
     return () => {
-      // Clear thumbnail 20s timeouts
-      Object.values(thumbnailTimeoutsRef.current).forEach((timer) => clearTimeout(timer));
       // Revoke any created objectURL on unmount to prevent memory leaks
       if (uploadedImageRef.current && uploadedImageRef.current.startsWith('blob:')) {
         URL.revokeObjectURL(uploadedImageRef.current);
@@ -281,47 +238,22 @@ export default function App() {
     }
   };
 
-  const handleChannelNameChange = (e) => {
-    const val = e.target.value;
-    setChannelName(val);
-    try {
-      localStorage.setItem('channel_name', val);
-    } catch (err) {
-      console.warn('Failed to save channel_name to localStorage', err);
-    }
-  };
-
-  const handleChannelLinkChange = (e) => {
-    const val = e.target.value;
-    setChannelLink(val);
-    try {
-      localStorage.setItem('channel_link', val);
-    } catch (err) {
-      console.warn('Failed to save channel_link to localStorage', err);
-    }
-  };
-
-  const applyChannelPlaceholders = (text) => {
-    if (!text || typeof text !== 'string') return text;
-    const cName = safeGetLocalStorage('channel_name', channelName || USER_CONFIG.channelName);
-    const cLink = safeGetLocalStorage('channel_link', channelLink || USER_CONFIG.channelUrl);
-    return text
-      .replace(/{channel_name}/gi, cName)
-      .replace(/{channel_link}/gi, cLink);
-  };
-
-  const handleClearSingleKey = (providerId) => {
+  const handleClearSingleKey = async (providerId) => {
     const keyName = findAnyProvider(providerId).keyName;
-    setSecret(keyName, '');
+    try {
+      await setSecret(keyName, '');
+    } catch (err) {
+      showToast(`${t('toastKeySaveFailed')} ${String(err?.message || err)}`, 'error');
+      return;
+    }
     // A shared key (Gemini) is cleared in both fields
     if (getProvider(providerInput).keyName === keyName) setKeyInput('');
     if (getImageProvider(imageProviderInput).keyName === keyName) setImageKeyInput('');
     showToast(translations[lang]['keyClearedSuccess'], 'success');
   };
 
-  // Phase 35: Read from clipboard and paste into API key field
 
-  // Phase 35: Voice Input via Web Speech API in Chat Studio
+  // Voice Input via Web Speech API in Chat Studio
   const handleToggleVoiceInput = () => {
     const SpeechRecognition = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
     if (!SpeechRecognition) {
@@ -383,11 +315,10 @@ export default function App() {
   };
 
   const handleResetGenerationOptions = () => {
-    setGenTitles(false);
-    setGenShorts(false);
-    setGenDescription(false);
-    setGenThumbnails(false);
-    setUseCustomTemplate(false);
+    setGenTitles(DEFAULT_OPTIONS.titles);
+    setGenDescription(DEFAULT_OPTIONS.description);
+    setGenThumbnails(DEFAULT_OPTIONS.thumbnails);
+    setUseCustomTemplate(DEFAULT_OPTIONS.customTemplate);
     showToast(translations[lang]['optionsResetToast'], 'info');
   };
 
@@ -424,16 +355,22 @@ export default function App() {
 
   // Desktop: an empty field keeps the saved key. Browser: an empty field clears it (old behaviour).
 
-  const handleSaveApiKey = () => {
+  const handleSaveApiKey = async () => {
     const provider = getProvider(providerInput);
     const imageProvider = getImageProvider(imageProviderInput);
     const value = keyInput.trim();
-    // Desktop: an empty field keeps the saved key (use Clear to remove it). Browser: empty clears it.
-    if (value || !hasDesktopSecrets()) setSecret(provider.keyName, value);
-    // Gemini text and Gemini image share one key: save it once, from the text field
-    if (imageProvider.keyName !== provider.keyName) {
-      const imageValue = imageKeyInput.trim();
-      if (imageValue || !hasDesktopSecrets()) setSecret(imageProvider.keyName, imageValue);
+    try {
+      // Desktop: an empty field keeps the saved key (use Clear to remove it). Browser: empty clears it.
+      if (value || !hasDesktopSecrets()) await setSecret(provider.keyName, value);
+      // Gemini text and Gemini image share one key: save it once, from the text field
+      if (imageProvider.keyName !== provider.keyName) {
+        const imageValue = imageKeyInput.trim();
+        if (imageValue || !hasDesktopSecrets()) await setSecret(imageProvider.keyName, imageValue);
+      }
+    } catch (err) {
+      // The desktop app refuses to store a key it cannot encrypt: keep the dialog open so nothing is lost
+      showToast(`${t('toastKeySaveFailed')} ${String(err?.message || err)}`, 'error');
+      return;
     }
     setActiveProviderId(providerInput);
     setActiveImageProviderId(imageProviderInput);
@@ -552,14 +489,14 @@ export default function App() {
     selectedPlatforms,
     gameName,
     episode,
+    limits,
     template,
-    applyChannelPlaceholders,
+    channelProfile,
     activeTab,
     chatPrompt,
     videoTitles,
     showToast,
     genTitles,
-    genShorts,
     genDescription,
     genThumbnails,
     setVideoTitles,
@@ -594,29 +531,20 @@ export default function App() {
       dir={lang === 'ar' ? 'rtl' : 'ltr'}
       className={`${lang === 'ar' ? 'font-arabic' : 'font-english'} min-h-screen bg-[#0d0f14] dark:bg-[#0d0f14] text-gray-100 dark:text-gray-100 flex flex-col relative w-full overflow-x-hidden transition-colors duration-200`}
     >
-      <Header lang={lang} theme={theme} toggleTheme={toggleTheme} setLang={setLang} openSettings={openSettings} view={view} setView={setView} profileName={profile?.name} onSwitchUser={openProfilePicker} />
+      <Header lang={lang} theme={theme} toggleTheme={toggleTheme} setLang={setLang} openSettings={openSettings} view={view} setView={setView} profileName={profile?.name} onSwitchUser={openProfilePicker} channelName={channelProfile.channelName} onEditChannel={() => setChannelEditorOpen(true)} />
 
       {/* Main Content */}
       <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col gap-6 pb-16 sm:pb-20">
         {view === 'dashboard' && <Dashboard lang={lang} />}
-        {view !== 'dashboard' && <InputCard showToast={showToast} setActiveTab={setActiveTab} activeTab={activeTab} lang={lang} gameName={gameName} setGameName={setGameName} episode={episode} setEpisode={setEpisode} chatPrompt={chatPrompt} setChatPrompt={setChatPrompt} isRecording={isRecording} handleToggleVoiceInput={handleToggleVoiceInput} contentType={contentType} setContentType={setContentType} selectedPlatforms={selectedPlatforms} setSelectedPlatforms={setSelectedPlatforms} handleGenerate={handleGenerate} isLoading={isLoading} saveStatus={saveStatus} isEditing={isEditing} handleSaveClick={handleSaveClick} handleToggleEdit={handleToggleEdit} handleSelectPresetTemplate={handleSelectPresetTemplate} channelName={channelName} handleChannelNameChange={handleChannelNameChange} channelLink={channelLink} handleChannelLinkChange={handleChannelLinkChange} template={template} setTemplate={setTemplate} fileInputRef={fileInputRef} handleFileChange={handleFileChange} handleDragOver={handleDragOver} handleDragEnter={handleDragEnter} handleDragLeave={handleDragLeave} handleDrop={handleDrop} uploadedImage={uploadedImage} isDragging={isDragging} imageDetails={imageDetails} handleRemoveImage={handleRemoveImage} imageError={imageError} handleResetGenerationOptions={handleResetGenerationOptions} genTitles={genTitles} setGenTitles={setGenTitles} genShorts={genShorts} setGenShorts={setGenShorts} genDescription={genDescription} setGenDescription={setGenDescription} genThumbnails={genThumbnails} setGenThumbnails={setGenThumbnails} useCustomTemplate={useCustomTemplate} setUseCustomTemplate={setUseCustomTemplate} />}
-        {view !== 'dashboard' && <OutputArea section={contentType} limits={limits} hasGenerated={hasGenerated} lang={lang} handleExportAll={handleExportAll} genThumbnails={genThumbnails} imagePrompt={imagePrompt} setImagePrompt={setImagePrompt} handleCopyAndOpenGemini={handleCopyAndOpenGemini} handleCopyAndOpenChatGPT={handleCopyAndOpenChatGPT} generatedImage={generatedImage} isGeneratingImage={isGeneratingImage} handleGenerateImage={handleGenerateImage} imageProvider={activeImageProvider} referencePhotoAttached={referencePhotoAttached} genTitles={genTitles} videoTitles={videoTitles} handleRegenerateTitles={handleRegenerateTitles} isRegeneratingTitles={isRegeneratingTitles} copyToClipboard={copyToClipboard} copiedSection={copiedSection} genShorts={genShorts} shortsTitles={shortsTitles} handleRegenerateShorts={handleRegenerateShorts} isRegeneratingShorts={isRegeneratingShorts} genDescription={genDescription} description={description} handleRegenerateDescription={handleRegenerateDescription} isRegeneratingDescription={isRegeneratingDescription} />}
+        {view !== 'dashboard' && <InputCard showToast={showToast} setActiveTab={setActiveTab} activeTab={activeTab} lang={lang} gameName={gameName} setGameName={setGameName} episode={episode} setEpisode={setEpisode} chatPrompt={chatPrompt} setChatPrompt={setChatPrompt} isRecording={isRecording} handleToggleVoiceInput={handleToggleVoiceInput} contentType={contentType} setContentType={setContentType} selectedPlatforms={selectedPlatforms} setSelectedPlatforms={setSelectedPlatforms} handleGenerate={handleGenerate} isLoading={isLoading} saveStatus={saveStatus} isEditing={isEditing} handleSaveClick={handleSaveClick} handleToggleEdit={handleToggleEdit} handleSelectPresetTemplate={handleSelectPresetTemplate} channelProfile={channelProfile} onEditChannel={() => setChannelEditorOpen(true)} template={template} setTemplate={setTemplate} fileInputRef={fileInputRef} handleFileChange={handleFileChange} handleDragOver={handleDragOver} handleDragEnter={handleDragEnter} handleDragLeave={handleDragLeave} handleDrop={handleDrop} uploadedImage={uploadedImage} isDragging={isDragging} imageDetails={imageDetails} handleRemoveImage={handleRemoveImage} imageError={imageError} handleResetGenerationOptions={handleResetGenerationOptions} genTitles={genTitles} setGenTitles={setGenTitles} genDescription={genDescription} setGenDescription={setGenDescription} genThumbnails={genThumbnails} setGenThumbnails={setGenThumbnails} useCustomTemplate={useCustomTemplate} setUseCustomTemplate={setUseCustomTemplate} />}
+        {view !== 'dashboard' && <OutputArea section={contentType} limits={limits} hasGenerated={hasGenerated} lang={lang} handleExportAll={handleExportAll} genThumbnails={genThumbnails} imagePrompt={imagePrompt} setImagePrompt={setImagePrompt} handleCopyAndOpenGemini={handleCopyAndOpenGemini} handleCopyAndOpenChatGPT={handleCopyAndOpenChatGPT} generatedImage={generatedImage} isGeneratingImage={isGeneratingImage} handleGenerateImage={handleGenerateImage} imageProvider={activeImageProvider} referencePhotoAttached={referencePhotoAttached} genTitles={genTitles} videoTitles={videoTitles} handleRegenerateTitles={handleRegenerateTitles} isRegeneratingTitles={isRegeneratingTitles} copyToClipboard={copyToClipboard} copiedSection={copiedSection} shortsTitles={shortsTitles} handleRegenerateShorts={handleRegenerateShorts} isRegeneratingShorts={isRegeneratingShorts} genDescription={genDescription} description={description} handleRegenerateDescription={handleRegenerateDescription} isRegeneratingDescription={isRegeneratingDescription} />}
       </main>
 
-      {/* Phase 37: Sticky Owner Signature / Copyright Watermark Footer */}
       <footer className="sticky bottom-0 z-30 w-full bg-[#08090d]/95 dark:bg-[#08090d]/95 backdrop-blur-md border-t border-gray-800/90 py-2.5 px-4 text-center text-xs text-gray-400 shadow-lg mt-auto select-none">
         <div className="max-w-3xl mx-auto flex items-center justify-center gap-1.5 flex-wrap">
-          <span>© 2026 ViralForge.</span>
-          <span>{translations[lang]['footerDevelopedBy']}</span>
-          <a
-            href={USER_CONFIG.channelUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-purple-400 hover:text-purple-300 font-semibold underline underline-offset-2 transition-colors cursor-pointer"
-          >
-            {USER_CONFIG.channelName}
-          </a>
-          <span>.</span>
+          <span>© 2026 ViralForge</span>
+          <span>·</span>
+          <span>{t('footerOpenSource')}</span>
         </div>
       </footer>
 
@@ -646,6 +574,16 @@ export default function App() {
             <span className="break-words">{toastMessage}</span>
           </div>
         </div>
+      )}
+
+      {(!channelProfile.onboarded || channelEditorOpen) && (
+        <Onboarding
+          lang={lang}
+          mode={channelProfile.onboarded ? 'edit' : 'welcome'}
+          initial={channelProfile}
+          onSave={handleSaveChannelProfile}
+          onClose={() => setChannelEditorOpen(false)}
+        />
       )}
 
       <SettingsModal isSettingsOpen={isSettingsOpen} handleBackdropClick={handleBackdropClick} lang={lang} setIsSettingsOpen={setIsSettingsOpen} text={{ providerId: providerInput, onProvider: changeProviderInput, keyValue: keyInput, onKey: setKeyInput, show: showKey, onShow: setShowKey }} image={{ providerId: imageProviderInput, onProvider: changeImageProviderInput, keyValue: imageKeyInput, onKey: setImageKeyInput, show: showImageKey, onShow: setShowImageKey }} showToast={showToast} handleClearSingleKey={handleClearSingleKey} handleSaveApiKey={handleSaveApiKey} />

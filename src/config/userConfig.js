@@ -1,8 +1,9 @@
-// Personal defaults. Edit these values instead of touching the app code.
-// Users can still change the channel name and link inside the app; these are only the starting values.
+// Starting values for a new user's channel profile. They stay empty on purpose:
+// every user fills in their own channel on the welcome screen (Onboarding.jsx).
 export const USER_CONFIG = {
-  channelName: 'iZreoXP',
-  channelUrl: 'https://www.youtube.com/@IZEROXP',
+  channelName: '',
+  channelUrl: '',
   linktreeUrl: '',
   discordUrl: '',
+  style: 'energetic'
 };

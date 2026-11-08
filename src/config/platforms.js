@@ -53,13 +53,14 @@ export const DEFAULT_PLAN = { contentType: 'video', platforms: ['youtube_video']
 export function strictestLimits(platformIds) {
   const picked = platformIds.map((id) => PLATFORMS[id]).filter(Boolean);
   if (picked.length === 0) return { titleMax: 100, hashtagMax: 15, hashtagRecommended: [3, 5] };
+  const hashtagMax = Math.min(...picked.map((p) => p.hashtagMax));
+  const recMax = Math.min(hashtagMax, ...picked.map((p) => p.hashtagRecommended[1]));
+  // Platforms can disagree (Instagram 5-10, X 2-3): the range is clamped so min never exceeds max
+  const recMin = Math.min(recMax, Math.max(...picked.map((p) => p.hashtagRecommended[0])));
   return {
     titleMax: Math.min(...picked.map((p) => p.titleMax)),
-    hashtagMax: Math.min(...picked.map((p) => p.hashtagMax)),
-    hashtagRecommended: [
-      Math.max(...picked.map((p) => p.hashtagRecommended[0])),
-      Math.min(...picked.map((p) => p.hashtagRecommended[1]))
-    ]
+    hashtagMax,
+    hashtagRecommended: [recMin, recMax]
   };
 }
 

@@ -69,12 +69,14 @@ export async function revealSecret(name) {
   return readBrowserKey(name);
 }
 
-export function setSecret(name, value) {
+// Saves (or clears, with an empty value) one key. Returns a promise that rejects when the
+// desktop app cannot store it (for example when the OS cannot encrypt), so the UI can say so.
+export async function setSecret(name, value) {
   const v = (value || '').trim();
   const api = bridge();
   if (api) {
+    await api.set(name, v);
     cache[name] = v ? SAVED_MARKER : '';
-    api.set(name, v).catch((err) => console.warn('Failed to save key', err));
     return;
   }
   cache[name] = v;
@@ -83,5 +85,6 @@ export function setSecret(name, value) {
     else localStorage.removeItem(name);
   } catch (err) {
     console.warn('Failed to save key in browser storage', err);
+    throw new Error('Browser storage is not available');
   }
 }

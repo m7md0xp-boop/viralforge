@@ -14,6 +14,81 @@ const AI_TIMEOUT_MS = 100000;
 // Largest request body accepted (a reference photo is sent as base64 inside the JSON)
 const MAX_BODY_CHARS = 12000000;
 const DEFAULT_PROFILE_ID = 'default';
+const APP_ORIGIN = 'app://app';
+
+// Content Security Policy for every page the app serves. The renderer never calls external APIs itself
+// (the main process does, see ai:request), so it may only talk to its own origin.
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  "connect-src 'self'",
+  "media-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'none'"
+].join('; ');
+
+// Only one copy of the app may run: two copies would write profiles.json and the key files at the same time
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    const win = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed());
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
+  });
+}
+
+// Writes a file in one step: data goes to a temp file first, then replaces the old file.
+// A crash or a full disk while writing never leaves a half-written (corrupted) file behind.
+function writeFileAtomic(file, data) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.tmp`;
+  try {
+    fs.writeFileSync(tmp, data, { encoding: 'utf8', mode: 0o600 });
+    fs.renameSync(tmp, file);
+  } catch (err) {
+    try {
+      fs.rmSync(tmp, { force: true });
+    } catch {}
+    throw new Error(`Could not save ${path.basename(file)}: ${err.message}`);
+  }
+}
+
+// Reads a JSON file. A file that exists but cannot be parsed is kept aside (".corrupt-<time>")
+// instead of being silently overwritten, so its data can still be recovered by hand.
+function readJsonFile(file, fallback) {
+  let text;
+  try {
+    text = fs.readFileSync(file, 'utf8');
+  } catch {
+    return fallback; // missing file
+  }
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    try {
+      fs.renameSync(file, `${file}.corrupt-${Date.now()}`);
+    } catch {}
+    console.warn(`Corrupted ${path.basename(file)} was moved aside`, err);
+    return fallback;
+  }
+}
+
+// External links open in the default browser, and only web links (never file:, custom protocols, etc.)
+function openExternalSafe(url) {
+  try {
+    const { protocol } = new URL(url);
+    if (protocol === 'https:' || protocol === 'http:') shell.openExternal(url);
+  } catch {}
+}
 
 // Serve the built app from app:// so module scripts load and fetch() to external APIs works
 protocol.registerSchemesAsPrivileged([
@@ -27,12 +102,26 @@ function serveAppFile(request) {
   let relative = decodeURIComponent(pathname);
   if (relative === '/' || relative === '') relative = '/index.html';
   const filePath = path.normalize(path.join(DIST_DIR, relative));
-  if (!filePath.startsWith(DIST_DIR)) return new Response('Forbidden', { status: 403 });
-  return net.fetch(pathToFileURL(filePath).toString());
+  if (filePath !== DIST_DIR && !filePath.startsWith(DIST_DIR + path.sep)) return new Response('Forbidden', { status: 403 });
+  return net.fetch(pathToFileURL(filePath).toString()).then((res) => {
+    const headers = new Headers(res.headers);
+    headers.set('Content-Security-Policy', CSP);
+    headers.set('X-Content-Type-Options', 'nosniff');
+    return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+  });
 }
+// Permissions a page may get: clipboard writes (copy buttons) and the microphone (voice input). Everything else is refused.
+const ALLOWED_PERMISSIONS = new Set(['clipboard-sanitized-write', 'media']);
 function registerAppProtocol(sess) {
   if (registeredSessions.has(sess)) return;
   sess.protocol.handle('app', serveAppFile);
+  sess.setPermissionRequestHandler((wc, permission, callback, details) => {
+    const fromApp = (details && details.requestingUrl ? details.requestingUrl : wc.getURL()).startsWith(APP_ORIGIN);
+    callback(fromApp && ALLOWED_PERMISSIONS.has(permission));
+  });
+  sess.setPermissionCheckHandler((_wc, permission, requestingOrigin) =>
+    String(requestingOrigin || '').startsWith(APP_ORIGIN) && ALLOWED_PERMISSIONS.has(permission)
+  );
   registeredSessions.add(sess);
 }
 
@@ -45,16 +134,11 @@ const secretsFile = (profileId) =>
 const partitionFor = (profileId) => `persist:profile-${profileId}`;
 
 function readProfiles() {
-  try {
-    const list = JSON.parse(fs.readFileSync(profilesFile(), 'utf8'));
-    return Array.isArray(list) ? list.filter((p) => p && typeof p.id === 'string' && typeof p.name === 'string') : [];
-  } catch {
-    return [];
-  }
+  const list = readJsonFile(profilesFile(), []);
+  return Array.isArray(list) ? list.filter((p) => p && typeof p.id === 'string' && typeof p.name === 'string') : [];
 }
 function writeProfiles(list) {
-  fs.mkdirSync(path.dirname(profilesFile()), { recursive: true });
-  fs.writeFileSync(profilesFile(), JSON.stringify(list, null, 2));
+  writeFileAtomic(profilesFile(), JSON.stringify(list, null, 2));
 }
 function ensureProfiles() {
   const list = readProfiles();
@@ -105,30 +189,32 @@ function splitAccountKey(key) {
   return { accountId: key.slice(0, idx), token: key.slice(idx + 1) };
 }
 
+// Each key is decrypted on its own, so one damaged entry does not hide the others
 function readSecrets(profileId) {
-  try {
-    const raw = JSON.parse(fs.readFileSync(secretsFile(profileId), 'utf8'));
-    const out = {};
-    for (const name of SECRET_NAMES) {
-      if (raw[name] && safeStorage.isEncryptionAvailable()) {
-        out[name] = safeStorage.decryptString(Buffer.from(raw[name], 'base64'));
-      }
+  const raw = readJsonFile(secretsFile(profileId), {});
+  const out = {};
+  if (!raw || typeof raw !== 'object' || !safeStorage.isEncryptionAvailable()) return out;
+  for (const name of SECRET_NAMES) {
+    if (typeof raw[name] !== 'string' || !raw[name]) continue;
+    try {
+      out[name] = safeStorage.decryptString(Buffer.from(raw[name], 'base64'));
+    } catch (err) {
+      console.warn(`Saved key "${name}" could not be decrypted and was skipped`, err);
     }
-    return out;
-  } catch {
-    return {};
   }
+  return out;
 }
 
+// Keys are never written in plain text: without OS encryption the save is refused and the UI shows the error
 function writeSecrets(profileId, all) {
+  if (!safeStorage.isEncryptionAvailable()) {
+    throw new Error('Secure storage is not available on this system, so the key was not saved.');
+  }
   const encrypted = {};
   for (const [name, value] of Object.entries(all)) {
-    if (value && safeStorage.isEncryptionAvailable()) {
-      encrypted[name] = safeStorage.encryptString(value).toString('base64');
-    }
+    if (value) encrypted[name] = safeStorage.encryptString(value).toString('base64');
   }
-  fs.mkdirSync(path.dirname(secretsFile(profileId)), { recursive: true });
-  fs.writeFileSync(secretsFile(profileId), JSON.stringify(encrypted, null, 2));
+  writeFileAtomic(secretsFile(profileId), JSON.stringify(encrypted, null, 2));
 }
 
 // In-flight AI requests, so the renderer can cancel one it has given up on
@@ -267,9 +353,19 @@ function registerIpcHandlers() {
 function openExternalOnly(win) {
   // External links open in the default browser, never inside the app
   win.webContents.setWindowOpenHandler(({ url }) => {
-    shell.openExternal(url);
+    openExternalSafe(url);
     return { action: 'deny' };
   });
+  // The window never leaves the app: a link that would navigate it opens in the browser instead
+  const stayInApp = (event, url) => {
+    if (url.startsWith(`${APP_ORIGIN}/`)) return;
+    event.preventDefault();
+    openExternalSafe(url);
+  };
+  win.webContents.on('will-navigate', stayInApp);
+  win.webContents.on('will-redirect', stayInApp);
+  // No <webview> tags
+  win.webContents.on('will-attach-webview', (event) => event.preventDefault());
 }
 
 function baseWebPreferences(sess) {
@@ -277,7 +373,10 @@ function baseWebPreferences(sess) {
     preload: path.join(__dirname, 'preload.cjs'),
     contextIsolation: true,
     nodeIntegration: false,
-    sandbox: true
+    sandbox: true,
+    webSecurity: true,
+    allowRunningInsecureContent: false,
+    webviewTag: false
   };
 }
 
@@ -325,6 +424,7 @@ function createPickerWindow() {
 }
 
 app.whenReady().then(() => {
+  if (!gotSingleInstanceLock) return;
   Menu.setApplicationMenu(null);
   registerIpcHandlers();
   ensureProfiles();
