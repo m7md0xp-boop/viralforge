@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useI18n } from './i18n/useI18n';
 import { getImageProvider } from './config/aiProviders';
 import { getActiveImageProviderId } from './services/imageGeneration';
@@ -6,7 +6,7 @@ import { getCurrentProfile, openProfilePicker } from './services/profiles';
 import { useTheme } from './hooks/useTheme';
 import { useToast } from './hooks/useToast';
 import { useCopy } from './hooks/useCopy';
-import { useStudio } from './hooks/useStudio';
+import { EMPTY_RESULTS, useStudio } from './hooks/useStudio';
 import { useChannelProfile } from './hooks/useChannelProfile';
 import { useReferenceImage } from './hooks/useReferenceImage';
 import { useVoiceInput } from './hooks/useVoiceInput';
@@ -14,8 +14,13 @@ import { useTemplateManager } from './hooks/useTemplateManager';
 import { useGenerationOptions } from './hooks/useGenerationOptions';
 import { useProviderSettings } from './hooks/useProviderSettings';
 import { useGeneration } from './hooks/useGeneration';
+import { useLibrary } from './hooks/useLibrary';
+import { useSeries } from './hooks/useSeries';
+import { useThumbnailLab } from './hooks/useThumbnailLab';
+import { entryTitles } from './utils/libraryEntries';
 import Header from './components/layout/Header';
 import Footer from './components/layout/Footer';
+import MobileNav from './components/layout/MobileNav';
 import Toast from './components/layout/Toast';
 import StudioTabs from './components/studio/StudioTabs';
 import StudioInputCard from './components/studio/StudioInputCard';
@@ -24,6 +29,8 @@ import ReferenceImageCard from './components/studio/ReferenceImageCard';
 import GenerationOptions from './components/studio/GenerationOptions';
 import ResultsPanel from './components/results/ResultsPanel';
 import Dashboard from './components/screens/Dashboard';
+import ThumbnailLab from './components/screens/ThumbnailLab';
+import Library from './components/screens/Library';
 import Onboarding from './components/dialogs/Onboarding';
 import SettingsModal from './components/dialogs/SettingsModal';
 
@@ -34,7 +41,7 @@ export default function App() {
   const { toast, showToast } = useToast();
   const { copiedId, copy } = useCopy({ t, showToast });
 
-  const [view, setView] = useState('create'); // 'create' | 'dashboard'
+  const [view, setView] = useState('create'); // 'create' | 'lab' | 'library' | 'dashboard'
   const [profile, setProfile] = useState(null); // desktop app: the workspace of this window
   useEffect(() => {
     getCurrentProfile().then(setProfile);
@@ -55,6 +62,11 @@ export default function App() {
   const referenceImage = useReferenceImage({ t, showToast });
   const settings = useProviderSettings({ t, showToast });
 
+  // Library of past generations, series memory of the typed game, and the Thumbnail Lab
+  const library = useLibrary();
+  const seriesMemory = useSeries(mode === 'quick' ? gameName : '');
+  const lab = useThumbnailLab({ t, lang, showToast });
+
   const generation = useGeneration({
     studio,
     gameName,
@@ -64,6 +76,8 @@ export default function App() {
     template: templateManager.template,
     channelProfile: channel.profile,
     referenceImage: referenceImage.base64,
+    library,
+    series: seriesMemory,
     t,
     lang,
     showToast,
@@ -83,6 +97,35 @@ export default function App() {
     setPlatforms: studio.setPlatforms
   };
 
+  // Reopens a library entry in its studio
+  const restoreEntry = (entry) => {
+    studio.setStudio(entry.studio);
+    studio.updateResults(entry.studio, { ...EMPTY_RESULTS, ...entry.results, entryId: entry.id });
+    studio.setDetailsFor(entry.studio, entry.details || '');
+    if (entry.chatPrompt) {
+      setMode('chat');
+      setChatPrompt(entry.chatPrompt);
+    } else {
+      setMode('quick');
+      setGameName(entry.game || '');
+    }
+    setView('create');
+    showToast(t('library.restored'), 'success');
+  };
+
+  // Sends a generated thumbnail to the Lab, with the first title for the preview
+  const evaluateInLab = (src) => {
+    lab.load(src);
+    if (!lab.title && studio.results.videoTitles[0]) lab.setTitle(studio.results.videoTitles[0].title);
+    setView('lab');
+  };
+
+  // Titles offered in the Lab: the current ones first, then the library's
+  const myTitles = useMemo(() => {
+    const current = studio.results.videoTitles.map((x) => x.title);
+    return [...new Set([...current, ...library.entries.flatMap(entryTitles)])].slice(0, 50);
+  }, [studio.results.videoTitles, library.entries]);
+
   return (
     <div
       dir={dir}
@@ -100,16 +143,25 @@ export default function App() {
         onEditChannel={channel.openEditor}
       />
 
-      <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col gap-6 pb-16 sm:pb-20">
-        {view === 'dashboard' ? (
-          <Dashboard />
-        ) : (
+      <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 flex flex-col gap-6 pb-28 sm:pb-20">
+        {view === 'dashboard' && <Dashboard />}
+        {view === 'library' && <Library library={library} onRestore={restoreEntry} copy={copy} copiedId={copiedId} />}
+        {view === 'lab' && (
+          <ThumbnailLab
+            lab={lab}
+            generatedImage={studio.results.generatedImage?.src || null}
+            myTitles={myTitles}
+            channelName={channel.profile.channelName}
+          />
+        )}
+        {view === 'create' && (
           <>
             <StudioTabs studio={studio.studio} setStudio={studio.setStudio} />
             <StudioInputCard
               studio={studio.studio}
               inputs={inputs}
               voice={voice}
+              seriesMemory={seriesMemory}
               onGenerate={generation.generate}
               isGenerating={Boolean(generation.busy.generate)}
               showToast={showToast}
@@ -130,6 +182,7 @@ export default function App() {
               generation={generation}
               imageProvider={getImageProvider(getActiveImageProviderId())}
               referenceAttached={Boolean(referenceImage.base64)}
+              onEvaluate={evaluateInLab}
               copy={copy}
               copiedId={copiedId}
             />
@@ -138,6 +191,7 @@ export default function App() {
       </main>
 
       <Footer />
+      <MobileNav view={view} setView={setView} />
       <Toast toast={toast} />
 
       {channel.dialogMode && (

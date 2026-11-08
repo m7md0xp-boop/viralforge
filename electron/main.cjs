@@ -6,6 +6,7 @@ const crypto = require('crypto');
 
 const DIST_DIR = path.join(__dirname, '..', 'dist');
 const catalog = require('../shared/aiProviders.json');
+const brand = require('../shared/brand.json');
 // Text and image providers together. Keys are unique by name (Gemini text and image share one key).
 const ALL_PROVIDERS = [...catalog.providers, ...catalog.imageProviders];
 const SECRET_NAMES = [...new Set(ALL_PROVIDERS.map((p) => p.keyName))];
@@ -195,15 +196,16 @@ function splitAccountKey(key) {
   return { accountId: key.slice(0, idx), token: key.slice(idx + 1) };
 }
 
-// Each key is decrypted on its own, so one damaged entry does not hide the others
-function readSecrets(profileId) {
+// Each key is decrypted on its own, so one damaged entry does not hide the others.
+// The async safeStorage methods use the same OS key store as the old sync ones, so keys saved by older versions still decrypt.
+async function readSecrets(profileId) {
   const raw = readJsonFile(secretsFile(profileId), {});
   const out = {};
-  if (!raw || typeof raw !== 'object' || !safeStorage.isEncryptionAvailable()) return out;
+  if (!raw || typeof raw !== 'object' || !(await safeStorage.isAsyncEncryptionAvailable())) return out;
   for (const name of SECRET_NAMES) {
     if (typeof raw[name] !== 'string' || !raw[name]) continue;
     try {
-      out[name] = safeStorage.decryptString(Buffer.from(raw[name], 'base64'));
+      out[name] = (await safeStorage.decryptStringAsync(Buffer.from(raw[name], 'base64'))).result;
     } catch (err) {
       console.warn(`Saved key "${name}" could not be decrypted and was skipped`, err);
     }
@@ -212,13 +214,13 @@ function readSecrets(profileId) {
 }
 
 // Keys are never written in plain text: without OS encryption the save is refused and the UI shows the error
-function writeSecrets(profileId, all) {
-  if (!safeStorage.isEncryptionAvailable()) {
+async function writeSecrets(profileId, all) {
+  if (!(await safeStorage.isAsyncEncryptionAvailable())) {
     throw new Error('Secure storage is not available on this system, so the key was not saved.');
   }
   const encrypted = {};
   for (const [name, value] of Object.entries(all)) {
-    if (value) encrypted[name] = safeStorage.encryptString(value).toString('base64');
+    if (value) encrypted[name] = (await safeStorage.encryptStringAsync(value)).toString('base64');
   }
   writeFileAtomic(secretsFile(profileId), JSON.stringify(encrypted, null, 2));
 }
@@ -267,27 +269,27 @@ function registerIpcHandlers() {
   });
 
   // ----- secrets (per profile) -----
-  ipcMain.handle('secrets:status', (event) => {
-    const current = readSecrets(profileOf(event));
+  ipcMain.handle('secrets:status', async (event) => {
+    const current = await readSecrets(profileOf(event));
     const status = {};
     for (const name of SECRET_NAMES) status[name] = Boolean(current[name]);
     return status;
   });
 
   // Returns the plaintext key to the Settings screen only. Called when the user opens Settings.
-  ipcMain.handle('secrets:reveal', (event, name) => {
+  ipcMain.handle('secrets:reveal', async (event, name) => {
     if (!SECRET_NAMES.includes(name)) throw new Error('Unknown secret name');
-    return readSecrets(profileOf(event))[name] || '';
+    return (await readSecrets(profileOf(event)))[name] || '';
   });
 
-  ipcMain.handle('secrets:set', (event, name, value) => {
+  ipcMain.handle('secrets:set', async (event, name, value) => {
     if (!SECRET_NAMES.includes(name)) throw new Error('Unknown secret name');
     const profileId = profileOf(event);
-    const current = readSecrets(profileId);
+    const current = await readSecrets(profileId);
     const clean = typeof value === 'string' ? value.trim() : '';
     if (clean) current[name] = clean;
     else delete current[name];
-    writeSecrets(profileId, current);
+    await writeSecrets(profileId, current);
     return true;
   });
 
@@ -302,7 +304,7 @@ function registerIpcHandlers() {
     const binary = args.responseType === 'base64';
     const requestId = typeof args.requestId === 'string' && args.requestId.length <= 64 ? args.requestId : null;
 
-    const savedKey = readSecrets(profileId)[provider.keyName];
+    const savedKey = (await readSecrets(profileId))[provider.keyName];
     if (!savedKey) {
       return { status: 401, body: JSON.stringify({ error: { message: 'API key is not saved' } }) };
     }
@@ -343,9 +345,9 @@ function registerIpcHandlers() {
   });
 
   // Clipboard read for the "paste" buttons. Runs in the main process, so no browser permission prompt is needed.
-  ipcMain.handle('clipboard:readText', (event) => {
+  ipcMain.handle('clipboard:readText', async (event) => {
     profileOf(event);
-    return clipboard.readText().slice(0, 2000);
+    return (await clipboard.readText()).slice(0, 2000);
   });
 
   ipcMain.handle('ai:cancel', (_event, requestId) => {
@@ -394,7 +396,7 @@ function createProfileWindow(profileId) {
     height: 860,
     minWidth: 900,
     minHeight: 640,
-    title: 'ViralForge',
+    title: brand.name,
     backgroundColor: '#07090e',
     autoHideMenuBar: true,
     webPreferences: { ...baseWebPreferences(), partition: partitionFor(profileId) }
@@ -419,7 +421,7 @@ function createPickerWindow() {
     width: 520,
     height: 640,
     resizable: false,
-    title: 'ViralForge',
+    title: brand.name,
     backgroundColor: '#07090e',
     autoHideMenuBar: true,
     webPreferences: baseWebPreferences()
@@ -429,12 +431,37 @@ function createPickerWindow() {
   return win;
 }
 
+// ----- automatic updates -----
+// The installed app (NSIS build) checks the GitHub Releases of the project at start-up and every 6 hours,
+// downloads a newer version in the background and installs it when the app quits (the OS shows a notice).
+// Skipped in development, in the portable build (it cannot update itself) and with VF_DISABLE_UPDATES=1.
+const UPDATE_INTERVAL_MS = 6 * 60 * 60 * 1000;
+function startAutoUpdates() {
+  if (!app.isPackaged || process.env.PORTABLE_EXECUTABLE_FILE || process.env.VF_DISABLE_UPDATES === '1') return;
+  let autoUpdater;
+  try {
+    ({ autoUpdater } = require('electron-updater'));
+  } catch (err) {
+    console.warn('electron-updater is not available', err);
+    return;
+  }
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on('error', (err) => console.warn('Update check failed', err?.message || err));
+  const check = () => autoUpdater.checkForUpdatesAndNotify().catch((err) => console.warn('Update check failed', err?.message || err));
+  check();
+  setInterval(check, UPDATE_INTERVAL_MS).unref();
+}
+
 app.whenReady().then(() => {
   if (!gotSingleInstanceLock) return;
+  // Windows uses this id to group the app's windows and to show its notifications
+  app.setAppUserModelId(brand.appId);
   Menu.setApplicationMenu(null);
   registerIpcHandlers();
   ensureProfiles();
   createPickerWindow();
+  startAutoUpdates();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createPickerWindow();

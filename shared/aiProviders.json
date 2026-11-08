@@ -53,7 +53,8 @@
       "usageNote": {
         "ar": "مفتاح مجاني من Google AI Studio بحدود يومية. الطلبات قد تُستخدم لتحسين منتجات Google.",
         "en": "Free key from Google AI Studio with daily limits. Requests may be used to improve Google products."
-      }
+      },
+      "vision": true
     },
     {
       "id": "groq",
@@ -77,7 +78,8 @@
       "usageNote": {
         "ar": "حد مجاني يومي بدون بطاقة دفع، وهو سريع جداً للتوليد.",
         "en": "Free daily limit with no card required. Very fast for generation."
-      }
+      },
+      "vision": false
     },
     {
       "id": "openrouter",
@@ -101,7 +103,8 @@
       "usageNote": {
         "ar": "النماذج المجانية لها 50 طلباً يومياً، ترتفع إلى 1000 بعد شحن 10 دولار.",
         "en": "Free models allow 50 requests per day, rising to 1,000 after a $10 top-up."
-      }
+      },
+      "vision": false
     },
     {
       "id": "mistral",
@@ -125,7 +128,8 @@
       "usageNote": {
         "ar": "خطة Experiment مجانية بحد شهري من الرموز، وتحتاج إلى تحقق برقم هاتف. الطلبات قد تُستخدم لتدريب النماذج.",
         "en": "Free Experiment plan with a monthly token quota. Needs a verified phone number. Requests may be used for model training."
-      }
+      },
+      "vision": false
     },
     {
       "id": "cerebras",
@@ -149,7 +153,8 @@
       "usageNote": {
         "ar": "حد مجاني يومي من الرموز بدون بطاقة دفع.",
         "en": "Free daily token limit with no card required."
-      }
+      },
+      "vision": false
     },
     {
       "id": "cohere",
@@ -173,7 +178,8 @@
       "usageNote": {
         "ar": "المفتاح التجريبي مجاني لكنه للاستخدام غير التجاري وبحد شهري. الاستخدام الإنتاجي يتطلب دفعاً.",
         "en": "The trial key is free but for non-commercial use with a monthly cap. Production use requires payment."
-      }
+      },
+      "vision": false
     },
     {
       "id": "deepseek",
@@ -197,7 +203,8 @@
       "usageNote": {
         "ar": "الدفع حسب الاستخدام بعد شحن الرصيد. قد تتوفر أرصدة تجريبية للحسابات الجديدة (غير متحقق منها).",
         "en": "Pay-as-you-go after topping up. New accounts may get trial credit (not verified)."
-      }
+      },
+      "vision": false
     },
     {
       "id": "claude",
@@ -225,7 +232,8 @@
       "usageNote": {
         "ar": "واجهة API مدفوعة. تحتاج إلى رصيد في حساب Anthropic Console.",
         "en": "Paid API. You need credit in your Anthropic Console account."
-      }
+      },
+      "vision": true
     },
     {
       "id": "chatgpt",
@@ -249,7 +257,8 @@
       "usageNote": {
         "ar": "واجهة API مدفوعة حسب الاستخدام. تحتاج إلى رصيد في حساب OpenAI.",
         "en": "Pay-as-you-go API. You need credit in your OpenAI account."
-      }
+      },
+      "vision": true
     }
   ],
   "imageProviders": [

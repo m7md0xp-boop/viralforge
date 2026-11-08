@@ -8,7 +8,8 @@ export const EMPTY_RESULTS = {
   streamMeta: null, // { twitch?: { category, tags }, kick?: {...} }
   description: '', // long video description or short caption
   imagePrompt: '', // editable thumbnail prompt
-  generatedImage: null // { src, mime, provider } from the image provider
+  generatedImage: null, // { src, mime, provider } from the image provider
+  entryId: null // library entry of this result (regenerations update it)
 };
 
 const emptyByStudio = (value) => Object.fromEntries(CONTENT_TYPES.map((type) => [type, value]));
@@ -51,6 +52,7 @@ export function useStudio() {
   );
 
   const setDetails = useCallback((value) => setDetailsByStudio((prev) => ({ ...prev, [studio]: value })), [studio]);
+  const setDetailsFor = useCallback((type, value) => setDetailsByStudio((prev) => ({ ...prev, [type]: value })), []);
 
   const results = resultsByStudio[studio];
   const hasResults =
@@ -67,6 +69,7 @@ export function useStudio() {
     setPlatforms,
     details: detailsByStudio[studio],
     setDetails,
+    setDetailsFor,
     results,
     hasResults,
     updateResults

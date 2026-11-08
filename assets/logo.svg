@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- ViralForge app icon: a play button struck like a spark on a forge, purple to emerald -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7c3aed"/>
+      <stop offset="0.55" stop-color="#a21caf"/>
+      <stop offset="1" stop-color="#059669"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.42" r="0.55">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect id="background" width="1024" height="1024" rx="232" fill="url(#bg)"/>
+  <rect width="1024" height="1024" rx="232" fill="url(#glow)"/>
+  <g id="glyph">
+    <!-- play triangle -->
+    <path d="M392 300 C392 268 426 249 454 265 L736 434 C763 450 763 489 736 505 L454 674 C426 690 392 671 392 639 Z" fill="#ffffff"/>
+    <!-- spark -->
+    <path d="M300 238 L322 300 L384 322 L322 344 L300 406 L278 344 L216 322 L278 300 Z" fill="#fde68a"/>
+    <path d="M760 660 L774 700 L814 714 L774 728 L760 768 L746 728 L706 714 L746 700 Z" fill="#a7f3d0"/>
+  </g>
+</svg>

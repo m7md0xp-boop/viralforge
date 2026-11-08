@@ -1,0 +1,15 @@
+{
+  "note": "App identity in one place. Read by the web app (src/config/brand.js), the desktop main process, Capacitor (capacitor.config.json) and the release workflow. Change the name here, then run: npm run brand",
+  "name": "ViralForge",
+  "nameAr": "فايرال فورج",
+  "tagline": {
+    "ar": "استوديو صانع المحتوى",
+    "en": "Creator Studio"
+  },
+  "appId": "com.viralforge.app",
+  "publisher": "ViralForge contributors",
+  "repository": {
+    "owner": "m7md0xp-boop",
+    "repo": "viralforge"
+  }
+}
